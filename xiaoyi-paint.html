@@ -5,6 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0a0a0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="小一">
+<meta name="mobile-web-app-capable" content="yes">
 <title>小一 · AI 绘画助手</title>
 <style>
 :root[data-theme="dark"]{
@@ -150,6 +154,13 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 .m-tabs button.on{background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:600;}
 .m-count{margin-left:auto; font-size:11px; color:var(--faint); flex:0 0 auto;}
 .en-line{font-size:11px; color:var(--faint); margin-top:5px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;}
+
+/* ===== gallery ===== */
+.ggrid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px;}
+.gitem{position:relative; aspect-ratio:1; border-radius:12px; overflow:hidden; background:var(--hover); border:1px solid var(--rule);}
+.gitem img{width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in;}
+.gitem .gn{position:absolute; right:6px; bottom:6px; font-size:10px; background:rgba(0,0,0,.55); color:#fff; border-radius:99px; padding:1px 7px;}
+.field input[type=range]{padding:0; background:transparent; border:0; accent-color:var(--accent); height:28px;}
 
 /* empty hero */
 .hero{text-align:center; padding:34px 10px 16px;}
@@ -337,12 +348,23 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
       <button class="cbtn" id="btnTrans" title="英文提词翻译：把中文提示词翻译成英文">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h8M7.5 3.5v2c0 4.5-2 7.7-4.5 9.5"/><path d="M5.5 10.5c1.3 2.8 3.3 4.6 6 5.8"/><path d="M12.5 20.5l4.2-9.5 4.3 9.5M14.2 17h5"/></svg>
       </button>
+      <button class="cbtn" id="btnSnippet" title="插入常用提词">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h10a1 1 0 0 1 1 1V20l-6-3.2L6 20V4.5a1 1 0 0 1 1-1z"/></svg>
+      </button>
       <textarea id="input" rows="1" placeholder="描述想画的内容，或跟小一聊聊…"></textarea>
       <button class="cbtn send" id="btnSend" title="发送">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6.5 11.5L12 5.6l5.5 5.9"/></svg>
       </button>
     </div>
     <input type="file" id="fileRef" accept="image/*" multiple hidden>
+  </section>
+
+  <!-- ============ 作品画廊 ============ -->
+  <section id="view-gallery" class="view">
+    <div class="hdr"><div class="title">作品画廊</div><span class="badge dim" id="galCount">0</span><div class="spacer"></div>
+      <button class="icon-btn" id="btnTheme3" title="切换主题"></button>
+    </div>
+    <div class="panel"><div id="galWrap"></div></div>
   </section>
 
   <!-- ============ 画风与形象 ============ -->
@@ -366,6 +388,14 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>上传角色形象图
         </button>
         <input type="file" id="fileChar" accept="image/*" hidden>
+      </div>
+      <div class="sec">
+        <div class="sec-h"><h3>常用提词</h3><span class="badge dim" id="snipCount">0</span></div>
+        <p class="hint">把常用的提示词片段收藏起来，发消息时点输入框旁的书签按钮快速插入。</p>
+        <div id="snipList"></div>
+        <button class="add-card" id="btnAddSnip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>添加提词片段
+        </button>
       </div>
     </div>
   </section>
@@ -439,6 +469,7 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
         <div class="sec-h"><h3>其他</h3></div>
         <div class="card">
           <div class="acts" style="margin-top:0">
+            <button class="mini" id="btnInstall" style="display:none">安装到桌面</button>
             <button class="mini" id="btnClearChat">清空聊天记录</button>
             <button class="mini" id="btnClearRefs">清空全部图片数据</button>
           </div>
@@ -446,6 +477,7 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
             <b>提示</b><br>
             · 兼容 OpenAI 格式中转站：<b>GET /v1/models</b>、<b>POST /v1/images/generations</b>，带参考图/画风/形象时走 <b>/v1/images/edits</b>。<br>
             · 内置<b>英文提词翻译</b>：输入框旁「译」按钮随时把中文提示词翻译成英文，可复制或一键「用英文画」；开启自动翻译后，正常发送也会先翻成英文再出图。<br>
+            · 「画廊」自动收集全部成图；常用提词在「画风」页管理，输入框旁书签键插入；跟小一说「帮我把…扩写成提示词」可以润色。<br>
             · 若浏览器提示跨域（CORS）失败，请选择支持 CORS 的中转站地址，或用允许跨域的方式部署本页。<br>
             · 所有配置与图片仅保存在本机浏览器，不会上传到任何服务器。
           </div>
@@ -459,6 +491,10 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
     <button data-tab="chat" class="on">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4c-4.7 0-8.5 3.2-8.5 7.2 0 2.3 1.2 4.3 3.1 5.6L6 20.6l3.4-1.6c.8.2 1.7.3 2.6.3 4.7 0 8.5-3.2 8.5-7.2S16.7 4 12 4z"/></svg>
       助手
+    </button>
+    <button data-tab="gallery">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>
+      画廊
     </button>
     <button data-tab="style">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18h1.6a2 2 0 0 0 1.4-3.4c-.8-.8-.2-2.1.9-2.1H19a2.5 2.5 0 0 0 2.5-2.5C21.5 7 17.2 3 12 3z"/><circle cx="8" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="7.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.1" fill="currentColor" stroke="none"/></svg>
@@ -521,8 +557,11 @@ const S={
   charSel:store.get('xy_chars_sel',[]),
   theme:store.get('xy_theme','dark'),
   size:store.get('xy_size','1024x1024'),
+  count:store.get('xy_count',1),
+  strength:store.get('xy_strength',75),
   translate:store.get('xy_translate',true),
-  quote:null, refs:[], editingPreset:null, busy:false, viewerMsg:null,
+  snips:store.get('xy_snips',null)||[{id:uid(),text:'细腻光影，柔和阴影'},{id:uid(),text:'电影感构图，浅景深'},{id:uid(),text:'细节丰富，8k 画质，highly detailed'}],
+  quote:null, refs:[], editingPreset:null, busy:false, viewerMsg:null, viewerSrc:null, pendingDraw:false,
 };
 let editModels=[]; // 当前表单可选择的模型列表（未保存也能用）
 const activePreset=()=>S.presets.find(p=>p.id===S.activeId)||null;
@@ -532,7 +571,9 @@ function persist(key,arr,dropImg=true){
   if(store.set(key,arr)){ if(key==='xy_msgs')S.msgs=arr; return; }
   if(dropImg){ // 图片占空间，逐步丢最老的图片数据再试
     const a=JSON.parse(JSON.stringify(arr));
-    for(let i=0;i<a.length;i++){ if(a[i].img){a[i].img='';a[i].evicted=true; if(store.set(key,a)){if(key==='xy_msgs')S.msgs=a;return;} } }
+    for(let i=0;i<a.length;i++){
+      if(a[i].img||(a[i].imgs&&a[i].imgs.length)){a[i].img='';a[i].imgs=[];a[i].evicted=true; if(store.set(key,a)){if(key==='xy_msgs')S.msgs=a;return;} }
+    }
   }
   toast('本机存储空间不足，部分图片未能缓存');
 }
@@ -684,6 +725,7 @@ function renderMsgs(){
   }
   S.msgs.forEach(m=>list.appendChild(msgEl(m)));
   scrollBottom();
+  renderGallery();
 }
 function msgEl(m){
   const div=document.createElement('div');
@@ -692,8 +734,9 @@ function msgEl(m){
   let inner='';
   if(m.quote)inner+=`<div class="quote">${esc(m.quote)}</div>`;
   if(m.kind==='image'){
-    if(m.img)inner+=`<img class="gen" src="${m.img}" alt="">`;
-    else inner+=`<div style="font-size:12.5px;color:var(--muted);padding:6px 0">[图片已清理：本机存储空间不足]</div>`;
+    const imgs=(m.imgs&&m.imgs.length)?m.imgs:(m.img?[m.img]:[]);
+    imgs.forEach(src=>{inner+=`<img class="gen" src="${src}" alt="">`;});
+    if(!imgs.length)inner+=`<div style="font-size:12.5px;color:var(--muted);padding:6px 0">[图片已清理：本机存储空间不足]</div>`;
     if(m.text)inner+=`<div>${esc(m.text)}</div>`;
     if(m.en)inner+=`<div class="en-line">EN · ${esc(m.en)}</div>`;
   }else{
@@ -704,8 +747,8 @@ function msgEl(m){
   const bubble=`<div class="bubble ${m.kind==='error'?'err':''}">${inner}</div>`;
   const stat=m.role==='user'?` · <span class="rstat${m.read?' rd':''}">${m.read?'已读':'已送达'}</span>`:'';
   div.innerHTML=`${m.role==='user'?'':av}${bubble}<div class="time">${m.time||fmtTime(m.ts)}${stat}</div>${m.role==='user'?av:''}`;
-  const img=div.querySelector('img.gen');
-  if(img){img.onclick=e=>{e.stopPropagation();openViewer(m);};}
+  const img=div.querySelectorAll('img.gen');
+  img.forEach(im=>im.onclick=e=>{e.stopPropagation();openViewer(m,im.src);});
   bindPress(div,()=>sheetFor(m));
   return div;
 }
@@ -774,17 +817,18 @@ function sheetFor(m){
   const label=m.kind==='image'?'[图片]':(m.text||'');
   items.push({icon:'quote',txt:'引用',fn:()=>{S.quote={who:m.role==='user'?'我':'小一',text:(m.text||(m.img?'[图片]':'')).slice(0,80)};renderQuote();}});
   items.push({icon:'copy',txt:'复制',fn:async()=>{
-    if(m.kind==='image'&&m.img&&!m.text){
-      try{const blob=await(await fetch(m.img)).blob();
+    if(m.kind==='image'&&(m.img||(m.imgs&&m.imgs.length))&&!m.text){
+      const src=(m.imgs&&m.imgs[0])||m.img;
+      try{const blob=await(await fetch(src)).blob();
         await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);toast('图片已复制');}
       catch(e){toast('该浏览器不支持复制图片，已改为保存')}
-      if(m.img.startsWith('data:'))downloadImg(m.img);
+      if(src.startsWith('data:'))downloadImg(src);
     }else{
       try{await navigator.clipboard.writeText(m.text||'');toast('已复制');}catch(e){toast('复制失败');}
     }
   }});
   items.push({icon:'undo',txt:'撤回',fn:()=>{S.msgs=S.msgs.filter(x=>x.id!==m.id);persistMsgs();renderMsgs();toast('已撤回');}});
-  if((m.kind==='image'&&m.img&&m.prompt)||(m.role==='user'&&m.text))
+  if((m.kind==='image'&&(m.img||(m.imgs&&m.imgs.length))&&m.prompt)||(m.role==='user'&&m.text))
     items.push({icon:'redo',txt:'重新生成',fn:()=>regen(m)});
   openSheet('来自 '+(m.role==='user'?'我':'小一')+' · '+label.slice(0,24),items);
 }
@@ -815,9 +859,10 @@ $('#mCancel').onclick=closeOverlays;
 $('#mOk').onclick=()=>{closeOverlays();modalCb&&modalCb();};
 
 /* ================= viewer & download ================= */
-function openViewer(m){
-  if(!m.img)return;
-  S.viewerMsg=m;$('#vImg').src=m.img;
+function openViewer(m,src){
+  const s=src||m.img||(m.imgs&&m.imgs[0])||'';
+  if(!s)return;
+  S.viewerMsg=m;S.viewerSrc=s;$('#vImg').src=s;
   $('#vPrompt').textContent=(m.prompt||m.text||'')+(m.en?'\nEN: '+m.en:'');
   $('#viewer').classList.add('show');
 }
@@ -832,11 +877,11 @@ function downloadImg(src,name){
     setTimeout(()=>URL.revokeObjectURL(u),4000);toast('已保存');
   }).catch(()=>{window.open(src,'_blank');toast('已在新窗口打开，请长按保存');});
 }
-$('#vDownload').onclick=()=>{const m=S.viewerMsg;m&&m.img&&downloadImg(m.img);};
+$('#vDownload').onclick=()=>{const m=S.viewerMsg,s=S.viewerSrc;m&&s&&downloadImg(s);};
 $('#vStyle').onclick=()=>{
-  const m=S.viewerMsg;if(!m||!m.img)return;
+  const m=S.viewerMsg,s=S.viewerSrc;if(!m||!s)return;
   askConfirm('设为专属画风','之后每次生成都会参考这张图的画风、质感与色彩，确定吗？',()=>{
-    addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),img:m.img,auto:true});
+    addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),img:s,auto:true});
     S.styleActive=S.styles[0].id;store.set('xy_style_active',S.styleActive);
     renderStyles();renderCtx();
     S.msgs.push({id:uid(),role:'ai',kind:'text',text:'好，这张以后就是你的专属画风了，接下来都按这个风格来。',ts:Date.now()});
@@ -857,6 +902,14 @@ $('#btnParam').onclick=()=>{
   wrap.innerHTML=`<div class="field"><label>图片尺寸</label><select id="sizeSel" style="width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:13.5px;outline:none">
     ${['1024x1024','1024x1536','1536x1024','512x512'].map(s=>`<option ${s===S.size?'selected':''}>${s}</option>`).join('')}
   </select></div>
+  <div class="field"><label>一次出几张（抽卡模式）</label><select id="cntSel" style="width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:13.5px;outline:none">
+    ${[1,2,4].map(n=>`<option value="${n}" ${n===S.count?'selected':''}>${n} 张${n>1?' · 挑最满意的':''}</option>`).join('')}
+  </select></div>
+  <div class="field" style="margin-top:4px">
+    <label>参考图影响强度 <span id="strVal" style="color:var(--ink);font-weight:600">${S.strength}%</span></label>
+    <input type="range" id="strRange" min="5" max="100" step="5" value="${S.strength}" style="width:100%">
+    <div style="font-size:11.5px;color:var(--muted)">用画风/形象/参考图时控制成图跟参考的接近程度：高=严格保持，低=只借鉴氛围自由发挥。</div>
+  </div>
   <div class="field" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:10px">
     <label style="margin:0;flex:1">提示词自动翻译成英文<br><span style="font-size:11px;color:var(--faint)">绘画模型不支持中文时建议开启，发图前自动先翻译</span></label>
     <input type="checkbox" id="trToggle" ${S.translate?'checked':''} style="width:21px;height:21px;accent-color:var(--accent);flex:0 0 auto">
@@ -864,6 +917,9 @@ $('#btnParam').onclick=()=>{
   <div style="font-size:11.5px;color:var(--muted)">比例接近 1:1 / 2:3 竖图 / 3:2 横图，实际支持取决于所选模型。</div>`;
   box.appendChild(wrap);
   wrap.querySelector('#sizeSel').onchange=e=>{S.size=e.target.value;store.set('xy_size',S.size);};
+  wrap.querySelector('#cntSel').onchange=e=>{S.count=+e.target.value;store.set('xy_count',S.count);};
+  const sr=wrap.querySelector('#strRange');
+  sr.oninput=()=>{S.strength=+sr.value;store.set('xy_strength',S.strength);wrap.querySelector('#strVal').textContent=S.strength+'%';};
   wrap.querySelector('#trToggle').onchange=e=>{S.translate=e.target.checked;store.set('xy_translate',S.translate);toast(S.translate?'已开启自动翻译':'已关闭自动翻译');};
 };
 $('#btnRef').onclick=()=>$('#fileRef').click();
@@ -916,6 +972,54 @@ $('#transSend').onclick=async()=>{
 };
 $('#transClose').onclick=hideTransBar;
 
+/* ================= 常用提词片段 ================= */
+function renderSnips(){
+  const box=$('#snipList');if(!box)return;
+  $('#snipCount').textContent=S.snips.length;
+  if(!S.snips.length){box.innerHTML='<div class="note" style="margin:0 0 10px">还没有片段。点下方按钮收藏常用提示词，比如「赛博朋克霓虹」「水彩淡彩」。</div>';return;}
+  box.innerHTML='';
+  S.snips.forEach(s=>{
+    const c=document.createElement('div');c.className='card';
+    c.innerHTML=`<div class="row"><div class="grow"><div class="nm" style="font-size:13px">${esc(s.text)}</div><div class="meta">提词片段</div></div></div>
+    <div class="acts"><button class="mini" data-a="edit">编辑</button><button class="mini danger" data-a="del">删除</button></div>`;
+    c.querySelector('[data-a=edit]').onclick=()=>{const t=prompt('修改片段内容：',s.text);if(t&&t.trim()){s.text=t.trim().slice(0,120);persist('xy_snips',S.snips,false);renderSnips();}};
+    c.querySelector('[data-a=del]').onclick=()=>{S.snips=S.snips.filter(x=>x.id!==s.id);persist('xy_snips',S.snips,false);renderSnips();};
+    box.appendChild(c);
+  });
+}
+$('#btnAddSnip').onclick=()=>{
+  const t=prompt('要收藏的提示词片段：');
+  if(t&&t.trim()){S.snips.unshift({id:uid(),text:t.trim().slice(0,120)});persist('xy_snips',S.snips,false);renderSnips();toast('已收藏');}
+};
+$('#btnSnippet').onclick=()=>{
+  if(!S.snips.length){toast('先去「画风」页添加常用提词');return;}
+  const items=S.snips.map(s=>({icon:'quote',txt:s.text.length>20?s.text.slice(0,20)+'…':s.text,fn:()=>{
+    input.value+=(input.value?'，':'')+s.text;autoGrow();closeOverlays();input.focus();
+  }}));
+  items.push({icon:'undo',txt:'管理片段（去画风页）',fn:()=>{closeOverlays();switchTab('style');}});
+  openSheet('插入提词片段',items);
+};
+
+/* ================= 润色提示词（小一） ================= */
+const POLISH_RE=/(润色|扩写|改写|优化|丰富).{0,8}(提示词|prompt|这句|一下)|(帮我把|帮我将|帮我用).{0,24}(扩写|润色|改写|丰富)/i;
+async function polishReply(text,p){
+  S.busy=true;$('#btnSend').disabled=true;setPresence('润色中…',true);markLastRead();showStatus('润色提示词…');
+  let out='';
+  if(p&&p.chatModel){
+    try{out=await apiChat(p,[
+      {role:'system',content:'你是绘画提示词专家。把用户的简单描述扩写成一段详细的绘画提示词：补充主体细节、光影、构图、镜头视角、质感、氛围等，保持用户原意，120 字以内，直接输出提示词本身，不要任何解释或前缀。'},
+      {role:'user',content:text}]);}catch(e){}
+  }
+  if(!out)out=text.replace(/[。.，,\s]+$/,'')+'，细腻光影，层次分明，构图讲究，细节丰富，质感真实，8k 画质，highly detailed, cinematic lighting';
+  out=out.trim().slice(0,400);
+  hideStatus();
+  S.msgs.push({id:uid(),role:'ai',kind:'text',text:'帮你扩写好了，已填进输入框，直接点发送就开画：\n'+out,ts:Date.now()});
+  persistMsgs();renderMsgs();
+  input.value=out;autoGrow();
+  S.pendingDraw=true;
+  setPresence('在线 · 随时开画');S.busy=false;$('#btnSend').disabled=false;
+}
+
 function renderCtx(){
   const box=$('#ctxChips');box.innerHTML='';
   const st=activeStyle();
@@ -959,14 +1063,16 @@ async function handleSend(){
   const text=input.value.trim();
   const hasRefs=S.refs.length>0;
   if(!text&&!hasRefs)return;
+  const forceDraw=S.pendingDraw;S.pendingDraw=false;
   input.value='';autoGrow();
   const p=activePreset();
   const lastImg=lastImageMsg();
   const wantsModify=lastImg&&/(改|换|调整|不满意|重画|再来一|重新|把.{0,12}(改成|换成))/.test(text);
   const wantsDraw=hasRefs||/^(画|帮我画|给我画|来一|生成|绘)|画一(张|幅|个)|画个|画张|来一张图|生成图/.test(text);
 
+  if(!wantsModify&&!wantsDraw&&text&&POLISH_RE.test(text)){pushMsg({id:uid(),role:'user',kind:'text',text,read:false,ts:Date.now()});await polishReply(text,p);return;}
   if(wantsModify&&lastImg){await doModify(text,lastImg);return;}
-  if(wantsDraw){
+  if(wantsDraw||forceDraw){
     if(hasRefs){
       pushMsg({id:uid(),role:'user',kind:'image',img:S.refs[0].img,text,read:false,ts:Date.now()});
     }else{
@@ -1036,10 +1142,12 @@ async function runGeneration({userText,extraPrompt='',refImgs=[],promptEn:enOver
   const parts=[];
   if(userText)parts.push(userText);
   if(extraPrompt)parts.push(extraPrompt);
-  if(st)parts.push('整体画风：严格参考所附画风参考图，保持「'+st.name+'」的画风、笔触质感与色彩倾向。');
+  const refWord=S.strength>=80?'严格参考所附画风参考图':S.strength>=50?'重点参考所附画风参考图':'仅借鉴所附画风参考图的整体氛围';
+  if(st)parts.push('整体画风：'+refWord+'，'+(S.strength>=50?'保持':'倾向')+'「'+st.name+'」的画风、笔触质感与色彩倾向。');
   if(cs.length)parts.push('角色形象锁定：'+cs.map(c=>'「'+c.name+'」').join('、')+'严格参考所附角色形象图，保持长相、发型、服饰特征一致。');
   const prompt=parts.filter(Boolean).join('\n');
   const refs=[...(st?[st.img]:[]),...cs.map(c=>c.img),...refImgs,...S.refs.map(r=>r.img)];
+  const n=Math.max(1,Math.min(4,S.count|0));
 
   const prog={id:uid(),role:'ai',kind:'progress',text:pick(ACKS),pct:4,stage:'已读 · 理解需求',ts:Date.now()};
   pushMsg(prog);S.busy=true;$('#btnSend').disabled=true;
@@ -1056,15 +1164,18 @@ async function runGeneration({userText,extraPrompt='',refImgs=[],promptEn:enOver
   const timer=setInterval(()=>{
     if(prog.kind!=='progress')return clearInterval(timer);
     const next=Math.min(prog.pct+Math.max(1,(90-prog.pct)*0.06|0),92);
-    updateProgress(prog,next,next<25?'提交请求':next<65?'模型生成中':'接收图片');
+    updateProgress(prog,next,next<25?'提交请求':next<65?(n>1?'生成 '+n+' 张 · 进行中':'模型生成中'):'接收图片');
   },420);
   try{
-    const img=await apiGenerate(p,{prompt:promptEn,refDataUrls:refs,size:S.size});
+    const results=await Promise.allSettled(Array.from({length:n},()=>apiGenerate(p,{prompt:promptEn,refDataUrls:refs,size:S.size})));
+    const imgs=results.filter(r=>r.status==='fulfilled').map(r=>r.value);
+    if(!imgs.length){const e=results.find(r=>r.status==='rejected');throw (e&&e.reason)||new Error('生成失败');}
+    if(imgs.length<n)toast('有 '+(n-imgs.length)+' 张没出来，其余已收到');
     const wait=Math.max(0,600-(Date.now()-t0));
     await new Promise(r=>setTimeout(r,wait));
     updateProgress(prog,100,'完成');
     const idx=S.msgs.indexOf(prog);
-    S.msgs[idx]={id:prog.id,role:'ai',kind:'image',img,prompt,en:promptEn!==prompt?promptEn:undefined,text:pick(DONE_LINES),refs:refs.length,ts:prog.ts};
+    S.msgs[idx]={id:prog.id,role:'ai',kind:'image',img:imgs[0],imgs:imgs.length>1?imgs:undefined,prompt,en:promptEn!==prompt?promptEn:undefined,text:imgs.length>1?imgs.length+' 张出来了，点开挑一张吧':pick(DONE_LINES),refs:refs.length,ts:prog.ts};
     persistMsgs();
   }catch(err){
     clearInterval(timer);
@@ -1386,12 +1497,86 @@ $('#btnClearRefs').onclick=()=>askConfirm('清空图片数据','将删除所有�
 });
 $('#btnTheme').onclick=toggleTheme;
 $('#btnTheme2').onclick=toggleTheme;
+$('#btnTheme3').onclick=toggleTheme;
+
+/* ================= 作品画廊 ================= */
+function galleryItems(){
+  const out=[];
+  S.msgs.forEach(m=>{
+    if(m.kind!=='image')return;
+    const srcs=(m.imgs&&m.imgs.length)?m.imgs:(m.img?[m.img]:[]);
+    srcs.forEach(s=>out.push({m,src:s}));
+  });
+  return out;
+}
+function renderGallery(){
+  const wrap=$('#galWrap');if(!wrap)return;
+  const items=galleryItems();
+  $('#galCount').textContent=items.length;
+  if(!items.length){wrap.innerHTML='<div class="note" style="margin-top:0">还没有作品。在「助手」页生成图片后，会自动收集到这里；点图片可以保存、设为画风或重发同款。</div>';return;}
+  wrap.innerHTML='';
+  const grid=document.createElement('div');grid.className='ggrid';
+  items.forEach(it=>{
+    const d=document.createElement('div');d.className='gitem';
+    d.innerHTML=`<img src="${it.src}" alt="">`+((it.m.imgs&&it.m.imgs.length>1)?`<span class="gn">${it.m.imgs.length}张</span>`:'');
+    d.querySelector('img').onclick=e=>{e.stopPropagation();openViewer(it.m,it.src);};
+    bindPress(d,()=>openSheet('画廊作品',[
+      {icon:'copy',txt:'保存到相册',fn:()=>downloadImg(it.src)},
+      {icon:'quote',txt:'设为专属画风',fn:()=>askConfirm('设为专属画风','之后每次生成都会参考这张图的画风，确定吗？',()=>{
+        addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),img:it.src,auto:true});
+        S.styleActive=S.styles[0].id;store.set('xy_style_active',S.styleActive);
+        renderStyles();renderCtx();toast('已设为使用中');
+      })},
+      {icon:'redo',txt:'重发同款',fn:()=>{if(it.m.prompt)runGeneration({userText:it.m.prompt});else toast('这条记录没有提示词');}},
+      {icon:'undo',txt:'删除此图',danger:true,fn:()=>{
+        if(it.m.imgs){it.m.imgs=it.m.imgs.filter(x=>x!==it.src);if(!it.m.imgs.length)S.msgs=S.msgs.filter(x=>x.id!==it.m.id);}
+        else S.msgs=S.msgs.filter(x=>x.id!==it.m.id);
+        persistMsgs();renderMsgs();toast('已删除');
+      }}
+    ]));
+    grid.appendChild(d);
+  });
+  wrap.appendChild(grid);
+}
+
+/* ================= PWA 安装到桌面 ================= */
+function makeIcon(size){
+  const c=document.createElement('canvas');c.width=c.height=size;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,size,size);
+  g.addColorStop(0,'#1c1c22');g.addColorStop(1,'#0a0a0c');
+  x.fillStyle=g;
+  const r=size*.22;
+  x.beginPath();x.moveTo(r,0);x.arcTo(size,0,size,size,r);x.arcTo(size,size,0,size,r);x.arcTo(0,size,0,0,r);x.arcTo(0,0,size,0,r);x.closePath();x.fill();
+  x.fillStyle='#f4f4f6';
+  x.font='700 '+size*.34+'px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillText('小一',size/2,size/2+size*.02);
+  return c.toDataURL('image/png');
+}
+try{
+  const man={name:'小一 · AI 绘画助手',short_name:'小一',start_url:location.pathname,scope:'./',display:'standalone',background_color:'#0a0a0c',theme_color:'#0a0a0c',
+    icons:[{src:makeIcon(192),sizes:'192x192',type:'image/png'},{src:makeIcon(512),sizes:'512x512',type:'image/png'}]};
+  const l=document.createElement('link');l.rel='manifest';
+  l.href='data:application/manifest+json;charset=utf-8,'+encodeURIComponent(JSON.stringify(man));
+  document.head.appendChild(l);
+  const at=document.createElement('link');at.rel='apple-touch-icon';at.href=makeIcon(180);
+  document.head.appendChild(at);
+}catch(e){}
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;const b=$('#btnInstall');if(b)b.style.display='';});
+$('#btnInstall').onclick=async()=>{
+  if(deferredInstall){deferredInstall.prompt();const c=await deferredInstall.userChoice;deferredInstall=null;$('#btnInstall').style.display='none';toast(c.outcome==='accepted'?'正在安装到桌面…':'已取消安装');return;}
+  if(location.protocol==='file:'){toast('本地文件方式不支持安装，部署到线上（如 GitHub Pages）后可用');return;}
+  if(/iPhone|iPad|iPod/i.test(navigator.userAgent))toast('iOS：用 Safari 打开本页 → 分享 → 添加到主屏幕');
+  else toast('用浏览器菜单里的「安装应用 / 添加到主屏幕」');
+};
 
 /* ================= init ================= */
 applyTheme();
 // 上次中途退出留下的生成中气泡，标记为中断
 S.msgs.forEach(m=>{if(m.kind==='progress'){m.kind='error';m.text='上次生成被中断了，重新发一次就行。';}});
-renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();
+renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();renderSnips();renderGallery();
 if(S.presets.length&&!S.editingPreset)fillForm(activePreset()||S.presets[0]);
 else fillForm(null);
 </script>
