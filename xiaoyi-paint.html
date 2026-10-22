@@ -162,6 +162,30 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 .gitem .gn{position:absolute; right:6px; bottom:6px; font-size:10px; background:rgba(0,0,0,.55); color:#fff; border-radius:99px; padding:1px 7px;}
 .field input[type=range]{padding:0; background:transparent; border:0; accent-color:var(--accent); height:28px;}
 
+/* ===== 开场动画 ===== */
+#splash{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;transition:opacity .55s ease,visibility .55s ease;cursor:pointer;}
+#splash.done{opacity:0;visibility:hidden;pointer-events:none;}
+.sp-glow{position:absolute;width:46vmax;height:46vmax;border-radius:50%;filter:blur(60px);opacity:.10;background:radial-gradient(circle,#8b8bf0,transparent 65%);animation:spDrift 7s ease-in-out infinite alternate;}
+.sp-glow.g1{top:-18vmax;left:-14vmax;}
+.sp-glow.g2{bottom:-20vmax;right:-16vmax;background:radial-gradient(circle,#5ad0c0,transparent 65%);animation-delay:-3.5s;}
+@keyframes spDrift{from{transform:translate(0,0) scale(1)}to{transform:translate(4vmax,3vmax) scale(1.12)}}
+.sp-core{position:relative;text-align:center;transition:transform .5s ease;}
+#splash.done .sp-core{transform:translateY(-14px) scale(.98);}
+.sp-mark{width:76px;height:76px;color:var(--ink);overflow:visible;display:block;margin:0 auto;}
+.sp-mark .p{fill:none;stroke:currentColor;stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:spDraw .95s cubic-bezier(.55,0,.3,1) .15s forwards;}
+.sp-mark .c{fill:none;stroke:currentColor;stroke-width:1.1;stroke-dasharray:1;stroke-dashoffset:1;animation:spDraw .5s ease .95s forwards,spFill .5s ease 1.35s forwards;}
+@keyframes spDraw{to{stroke-dashoffset:0}}
+@keyframes spFill{to{fill:currentColor}}
+.sp-name{font-size:30px;font-weight:700;color:var(--ink);margin-top:18px;letter-spacing:.4em;padding-left:.4em;opacity:0;transform:translateY(12px);filter:blur(6px);animation:spName .8s cubic-bezier(.2,.7,.2,1) .75s forwards;}
+@keyframes spName{to{opacity:1;filter:blur(0);letter-spacing:.14em;transform:translateY(0)}}
+.sp-sub{margin-top:10px;font-size:12.5px;letter-spacing:.32em;padding-left:.32em;color:var(--muted);opacity:0;animation:spFade .7s ease 1.15s forwards;}
+.sp-line{margin:22px auto 0;width:120px;height:2px;border-radius:2px;background:var(--rule);overflow:hidden;opacity:0;animation:spFade .5s ease 1.3s forwards;}
+.sp-line i{display:block;height:100%;width:0;background:linear-gradient(90deg,transparent,var(--ink));border-radius:2px;animation:spLoad 1s cubic-bezier(.4,0,.2,1) 1.35s forwards;}
+@keyframes spFade{from{opacity:0;transform:translateY(8px)}to{opacity:.92;transform:none}}
+@keyframes spLoad{to{width:100%}}
+.sp-skip{position:absolute;bottom:26px;left:0;right:0;text-align:center;font-size:11px;color:var(--faint);opacity:0;animation:spFade .6s ease 1.7s forwards;}
+@media (prefers-reduced-motion:reduce){#splash .sp-glow{animation:none}#splash .sp-mark .p,#splash .sp-mark .c,#splash .sp-name,#splash .sp-sub,#splash .sp-line,#splash .sp-line i,#splash .sp-skip{animation-duration:.01s !important;animation-delay:0s !important;}}
+
 /* empty hero */
 .hero{text-align:center; padding:34px 10px 16px;}
 .hero .avatar{width:64px;height:64px;border-radius:20px; margin:0 auto 14px;}
@@ -311,6 +335,19 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 </style>
 </head>
 <body>
+<div id="splash" aria-hidden="true">
+  <div class="sp-glow g1"></div><div class="sp-glow g2"></div>
+  <div class="sp-core">
+    <svg class="sp-mark" viewBox="0 0 24 24">
+      <path class="p" pathLength="1" d="M5.5 19c4.4-.4 6.8-3.2 8.6-8.1l1.6-4.2c.2-.5.9-.6 1.2-.2l1.4 1.5c.3.4.2.9-.2 1.2l-3.4 2.7C12 14 9 17 5.5 19z"/>
+      <circle class="c" pathLength="1" cx="17.6" cy="6.4" r="1.7"/>
+    </svg>
+    <div class="sp-name">小一</div>
+    <div class="sp-sub">AI 绘画助手</div>
+    <div class="sp-line"><i></i></div>
+  </div>
+  <div class="sp-skip">点击任意处跳过</div>
+</div>
 <div id="app">
 
   <!-- ============ 助手 ============ -->
@@ -1668,6 +1705,20 @@ $('#btnInstall').onclick=async()=>{
   if(/iPhone|iPad|iPod/i.test(navigator.userAgent))toast('iOS：用 Safari 打开本页 → 分享 → 添加到主屏幕');
   else toast('用浏览器菜单里的「安装应用 / 添加到主屏幕」');
 };
+
+/* ================= 开场动画 ================= */
+const splash=$('#splash');
+let splashDone=false;
+function endSplash(){
+  if(splashDone||!splash)return;splashDone=true;
+  splash.classList.add('done');
+  setTimeout(()=>splash.remove(),650);
+}
+if(splash){
+  const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(endSplash,reduceMotion?400:2100);
+  splash.addEventListener('click',endSplash);
+}
 
 /* ================= init ================= */
 applyTheme();
