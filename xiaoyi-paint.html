@@ -428,6 +428,14 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
         <input type="file" id="fileChar" accept="image/*" hidden>
       </div>
       <div class="sec">
+        <div class="sec-h"><h3>画师串</h3><span class="badge dim" id="artistCount">0/0</span></div>
+        <p class="hint">NovelAI 式画风混串：写 <b>artist:画师名</b> 可叠多个逗号分隔，也可以混风格标签；<b>{词}</b> 加权、<b>[词]</b> 减权。打开开关后每次生成自动拼进提示词，是否生效取决于所选模型认不认这类标签。</p>
+        <div id="artistList"></div>
+        <button class="add-card" id="btnAddArtist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>添加画师串
+        </button>
+      </div>
+      <div class="sec">
         <div class="sec-h"><h3>常用提词</h3><span class="badge dim" id="snipCount">0</span></div>
         <p class="hint">把常用的提示词片段收藏起来，发消息时点输入框旁的书签按钮快速插入。</p>
         <div id="snipList"></div>
@@ -617,6 +625,12 @@ const S={
   strength:store.get('xy_strength',75),
   translate:store.get('xy_translate',true),
   snips:store.get('xy_snips',null)||[{id:uid(),text:'细腻光影，柔和阴影'},{id:uid(),text:'电影感构图，浅景深'},{id:uid(),text:'细节丰富，8k 画质，highly detailed'}],
+  artists:store.get('xy_artists',null)||[
+    {id:uid(),name:'厚涂油画感',str:'thick paint, impasto, oil painting texture',on:false},
+    {id:uid(),name:'赛博霓虹',str:'neon lighting, cyberpunk style, blade runner atmosphere',on:false},
+    {id:uid(),name:'清新水彩',str:'watercolor, soft edges, pastel colors',on:false}],
+  neg:store.get('xy_neg',''),
+  qtags:store.get('xy_qtags',false),
   quote:null, refs:[], editingPreset:null, busy:false, viewerMsg:null, viewerSrc:null, pendingDraw:false,
 };
 let editModels=[]; // 当前表单可选择的模型列表（未保存也能用）
@@ -674,13 +688,14 @@ async function apiModels(p){
   const j=await r.json();
   return (j.data||[]).map(m=>m.id).filter(Boolean);
 }
-async function apiGenerate(p,{prompt,refDataUrls=[],size='1024x1024'}){
+async function apiGenerate(p,{prompt,refDataUrls=[],size='1024x1024',neg=''}){
   const root=apiRoot(p.baseUrl), model=p.model;
   if(!model)throw new Error('请先选择绘画模型');
   let res;
   if(refDataUrls.length){
     const fd=new FormData();
     fd.append('model',model); fd.append('prompt',prompt); fd.append('n','1'); fd.append('size',size);
+    if(neg)fd.append('negative_prompt',neg);
     for(const u of refDataUrls){
       const blob=await (await fetch(u)).blob();
       fd.append(refDataUrls.length>1?'image[]':'image',blob,'ref'+uid()+'.png');
@@ -691,11 +706,11 @@ async function apiGenerate(p,{prompt,refDataUrls=[],size='1024x1024'}){
       // 参考图不被该模型/中转支持时，退回纯文字生成
       if(/^(4\d\d)/.test(String(res.status))){
         toast('参考图接口不被支持，已退回纯文字生成');
-        res=await fetch(root+'/images/generations',{method:'POST',headers:authHeaders(p.key),body:JSON.stringify({model,prompt,n:1,size})});
+        res=await fetch(root+'/images/generations',{method:'POST',headers:authHeaders(p.key),body:JSON.stringify({model,prompt,n:1,size,...(neg?{negative_prompt:neg}:{})})});
       }else throw new Error('HTTP '+res.status+' '+t.slice(0,160));
     }
   }else{
-    res=await fetch(root+'/images/generations',{method:'POST',headers:authHeaders(p.key),body:JSON.stringify({model,prompt,n:1,size})});
+    res=await fetch(root+'/images/generations',{method:'POST',headers:authHeaders(p.key),body:JSON.stringify({model,prompt,n:1,size,...(neg?{negative_prompt:neg}:{})})});
   }
   if(!res.ok){
     const t=await res.text().catch(()=>'');
@@ -966,6 +981,14 @@ $('#btnParam').onclick=()=>{
     <input type="range" id="strRange" min="5" max="100" step="5" value="${S.strength}" style="width:100%">
     <div style="font-size:11.5px;color:var(--muted)">用画风/形象/参考图时控制成图跟参考的接近程度：高=严格保持，低=只借鉴氛围自由发挥。</div>
   </div>
+  <div class="field" style="margin-top:4px">
+    <label>负面提示词</label>
+    <textarea id="negText" rows="2" placeholder="不想出现的东西，如：lowres, bad anatomy, blurry。留空不发送；个别模型不支持该参数，报错就清空" style="width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:12.5px;outline:none;color:var(--ink);resize:vertical">${esc(S.neg)}</textarea>
+  </div>
+  <div class="field" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <label style="margin:0;flex:1">NovelAI 画质标签<br><span style="font-size:11px;color:var(--faint)">自动在提示词前加 best quality / very aesthetic 等，二次元模型建议开</span></label>
+    <input type="checkbox" id="qtToggle" ${S.qtags?'checked':''} style="width:21px;height:21px;accent-color:var(--accent);flex:0 0 auto">
+  </div>
   <div class="field" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:10px">
     <label style="margin:0;flex:1">提示词自动翻译成英文<br><span style="font-size:11px;color:var(--faint)">绘画模型不支持中文时建议开启，发图前自动先翻译</span></label>
     <input type="checkbox" id="trToggle" ${S.translate?'checked':''} style="width:21px;height:21px;accent-color:var(--accent);flex:0 0 auto">
@@ -976,6 +999,9 @@ $('#btnParam').onclick=()=>{
   wrap.querySelector('#cntSel').onchange=e=>{S.count=+e.target.value;store.set('xy_count',S.count);};
   const sr=wrap.querySelector('#strRange');
   sr.oninput=()=>{S.strength=+sr.value;store.set('xy_strength',S.strength);wrap.querySelector('#strVal').textContent=S.strength+'%';};
+  const nt=wrap.querySelector('#negText');
+  nt.oninput=()=>{S.neg=nt.value.slice(0,300);store.set('xy_neg',S.neg);};
+  wrap.querySelector('#qtToggle').onchange=e=>{S.qtags=e.target.checked;store.set('xy_qtags',S.qtags);toast(S.qtags?'已开启画质标签':'已关闭画质标签');};
   wrap.querySelector('#trToggle').onchange=e=>{S.translate=e.target.checked;store.set('xy_translate',S.translate);toast(S.translate?'已开启自动翻译':'已关闭自动翻译');};
 };
 $('#btnRef').onclick=()=>$('#fileRef').click();
@@ -1029,6 +1055,34 @@ $('#transSend').onclick=async()=>{
 $('#transClose').onclick=hideTransBar;
 
 /* ================= 常用提词片段 ================= */
+function renderArtists(){
+  const box=$('#artistList');if(!box)return;
+  const onN=S.artists.filter(a=>a.on).length;
+  $('#artistCount').textContent=onN+'/'+S.artists.length;
+  if(!S.artists.length){box.innerHTML='<div class="note" style="margin:0 0 10px">还没有画师串，点下方按钮添加，比如：artist:xxx, artist:yyy</div>';return;}
+  box.innerHTML='';
+  S.artists.forEach(a=>{
+    const c=document.createElement('div');c.className='card';
+    c.innerHTML=`<div class="row"><div class="grow" style="min-width:0"><div class="nm" style="font-size:13px">${esc(a.name||'')}</div><div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.str)}</div></div>
+      <input type="checkbox" ${a.on?'checked':''} style="width:20px;height:20px;accent-color:var(--accent);flex:0 0 auto"></div>
+      <div class="acts"><button class="mini" data-a="edit">编辑</button><button class="mini danger" data-a="del">删除</button></div>`;
+    c.querySelector('input[type=checkbox]').onchange=e=>{
+      a.on=e.target.checked;persist('xy_artists',S.artists,false);renderArtists();
+      toast(a.on?'已启用，生成时自动拼接「'+(a.name||'画师串')+'」':'已停用');
+    };
+    c.querySelector('[data-a=edit]').onclick=()=>{
+      const t=prompt('修改画师串内容：',a.str);
+      if(t&&t.trim())a.str=t.trim().slice(0,300);
+      const n=prompt('备注名称：',a.name||'');
+      if(n&&n.trim())a.name=n.trim().slice(0,20);
+      persist('xy_artists',S.artists,false);renderArtists();
+    };
+    c.querySelector('[data-a=del]').onclick=()=>{
+      S.artists=S.artists.filter(x=>x.id!==a.id);persist('xy_artists',S.artists,false);renderArtists();
+    };
+    box.appendChild(c);
+  });
+}
 function renderSnips(){
   const box=$('#snipList');if(!box)return;
   $('#snipCount').textContent=S.snips.length;
@@ -1044,8 +1098,8 @@ function renderSnips(){
   });
 }
 $('#btnAddSnip').onclick=()=>{
-  const t=prompt('要收藏的提示词片段：');
-  if(t&&t.trim()){S.snips.unshift({id:uid(),text:t.trim().slice(0,120)});persist('xy_snips',S.snips,false);renderSnips();toast('已收藏');}
+  const t=prompt('片段内容：');
+  if(t&&t.trim()){S.snips.unshift({id:uid(),text:t.trim().slice(0,80)});persist('xy_snips',S.snips,false);renderSnips();}
 };
 $('#btnSnippet').onclick=()=>{
   if(!S.snips.length){toast('先去「画风」页添加常用提词');return;}
@@ -1201,7 +1255,10 @@ async function runGeneration({userText,extraPrompt='',refImgs=[],promptEn:enOver
   const refWord=S.strength>=80?'严格参考所附画风参考图':S.strength>=50?'重点参考所附画风参考图':'仅借鉴所附画风参考图的整体氛围';
   if(st)parts.push('整体画风：'+refWord+'，'+(S.strength>=50?'保持':'倾向')+'「'+st.name+'」的画风、笔触质感与色彩倾向。');
   if(cs.length)parts.push('角色形象锁定：'+cs.map(c=>'「'+c.name+'」').join('、')+'严格参考所附角色形象图，保持长相、发型、服饰特征一致。');
-  const prompt=parts.filter(Boolean).join('\n');
+  const artsOn=S.artists.filter(a=>a.on&&a.str);
+  if(artsOn.length)parts.push(artsOn.map(a=>a.str).join(', '));
+  let prompt=parts.filter(Boolean).join('\n');
+  if(S.qtags)prompt='best quality, amazing quality, very aesthetic, absurdres, '+prompt;
   const refs=[...(st?[st.img]:[]),...cs.map(c=>c.img),...refImgs,...S.refs.map(r=>r.img)];
   const n=Math.max(1,Math.min(4,S.count|0));
 
@@ -1223,7 +1280,7 @@ async function runGeneration({userText,extraPrompt='',refImgs=[],promptEn:enOver
     updateProgress(prog,next,next<25?'提交请求':next<65?(n>1?'生成 '+n+' 张 · 进行中':'模型生成中'):'接收图片');
   },420);
   try{
-    const results=await Promise.allSettled(Array.from({length:n},()=>apiGenerate(p,{prompt:promptEn,refDataUrls:refs,size:S.size})));
+    const results=await Promise.allSettled(Array.from({length:n},()=>apiGenerate(p,{prompt:promptEn,refDataUrls:refs,size:S.size,neg:S.neg})));
     const imgs=results.filter(r=>r.status==='fulfilled').map(r=>r.value);
     if(!imgs.length){const e=results.find(r=>r.status==='rejected');throw (e&&e.reason)||new Error('生成失败');}
     if(imgs.length<n)toast('有 '+(n-imgs.length)+' 张没出来，其余已收到');
@@ -1584,7 +1641,7 @@ async function unpackPayload(text,pass){
   throw new Error('格式不对');
 }
 function buildBackup(includeMedia,includeMsgs){
-  const o={v:1,ts:Date.now(),presets:S.presets,activeId:S.activeId,snips:S.snips,size:S.size,count:S.count,strength:S.strength,translate:S.translate};
+  const o={v:1,ts:Date.now(),presets:S.presets,activeId:S.activeId,snips:S.snips,artists:S.artists,neg:S.neg,qtags:S.qtags,size:S.size,count:S.count,strength:S.strength,translate:S.translate};
   if(includeMedia){o.styles=S.styles;o.chars=S.chars;o.charSel=S.charSel;o.styleActive=S.styleActive;}
   if(includeMsgs)o.msgs=S.msgs;
   return o;
@@ -1593,15 +1650,20 @@ function applyBackup(o){
   if(!o||!Array.isArray(o.presets))throw new Error('内容不完整');
   S.presets=o.presets;S.activeId=o.activeId||null;
   if(o.snips)S.snips=o.snips;
+  if(o.artists)S.artists=o.artists;
+  if(o.neg!==undefined)S.neg=o.neg;
+  if(o.qtags!==undefined)S.qtags=!!o.qtags;
   ['size','count','strength','translate'].forEach(k=>{if(o[k]!==undefined)S[k]=o[k];});
   persist('xy_presets',S.presets,false);store.set('xy_active',S.activeId);
   persist('xy_snips',S.snips,false);
+  if(o.artists)persist('xy_artists',S.artists,false);
+  store.set('xy_neg',S.neg);store.set('xy_qtags',S.qtags);
   store.set('xy_size',S.size);store.set('xy_count',S.count);store.set('xy_strength',S.strength);store.set('xy_translate',S.translate);
   if(o.styles){S.styles=o.styles;S.chars=o.chars||[];S.charSel=o.charSel||[];S.styleActive=o.styleActive||null;
     persist('xy_styles',S.styles);persist('xy_chars',S.chars);store.set('xy_chars_sel',S.charSel);store.set('xy_style_active',S.styleActive);
     renderStyles();renderChars();renderCtx();}
   if(o.msgs){S.msgs=o.msgs;persistMsgs();}
-  renderPresets();fillForm(activePreset()||S.presets[0]||null);renderSnips();renderMsgs();
+  renderPresets();fillForm(activePreset()||S.presets[0]||null);renderSnips();renderArtists();renderMsgs();
 }
 $('#btnBkExport').onclick=async()=>{
   const pass=$('#bkPass').value;
@@ -1725,7 +1787,7 @@ if(splash){
 applyTheme();
 // 上次中途退出留下的生成中气泡，标记为中断
 S.msgs.forEach(m=>{if(m.kind==='progress'){m.kind='error';m.text='上次生成被中断了，重新发一次就行。';}});
-renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();renderSnips();renderGallery();
+renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();renderSnips();renderArtists();renderGallery();
 if(S.presets.length&&!S.editingPreset)fillForm(activePreset()||S.presets[0]);
 else fillForm(null);
 </script>
