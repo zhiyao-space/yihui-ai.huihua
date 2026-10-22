@@ -194,6 +194,16 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 .hero h2{margin:0 0 4px; font-size:18px;}
 .hero p{margin:0 0 18px; color:var(--muted); font-size:13px;}
 .chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center;}
+.libwrap{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
+.libchip{border:1px solid var(--rule); background:var(--card); border-radius:14px; padding:10px 12px; text-align:left; color:var(--ink); cursor:pointer; transition:border-color .18s, transform .18s; font-family:inherit;}
+.libchip:active{transform:scale(.97);}
+.libchip b{display:block; font-size:12.5px; margin-bottom:3px;}
+.libchip span{display:block; font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.rchips{display:flex; flex-wrap:wrap; gap:8px;}
+.rchip{border:1px solid var(--rule); background:var(--elev); color:var(--ink); border-radius:999px; padding:6px 12px; font-size:12px; cursor:pointer; transition:all .18s; font-family:inherit;}
+.rchip.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+.rlabel{font-size:11.5px; color:var(--faint); margin:10px 0 6px;}
+.rprev{background:var(--elev); border:1px dashed var(--rule); border-radius:12px; padding:10px 12px; font-size:12px; color:var(--muted); margin-top:12px; max-height:96px; overflow:auto; word-break:break-all;}
 .chips button{
   border:1px solid var(--rule); background:var(--surface); color:var(--muted);
   font-size:12.5px; padding:7px 13px; border-radius:999px; transition:all .18s ease;
@@ -428,6 +438,14 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
         <input type="file" id="fileChar" accept="image/*" hidden>
       </div>
       <div class="sec">
+        <div class="sec-h"><h3>热门画风库</h3><span class="badge dim" id="libCount">10</span></div>
+        <p class="hint">NovelAI 社区最火的画风提词配方，点一下自动存进画师串并启用。想混真人画师就自己在画师串里写 artist:名字。</p>
+        <div class="libwrap" id="styleLib"></div>
+        <button class="add-card" id="btnRecipe" style="margin-top:10px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/></svg>自定义画风配方器
+        </button>
+      </div>
+      <div class="sec">
         <div class="sec-h"><h3>画师串</h3><span class="badge dim" id="artistCount">0/0</span></div>
         <p class="hint">NovelAI 式画风混串：写 <b>artist:画师名</b> 可叠多个逗号分隔，也可以混风格标签；<b>{词}</b> 加权、<b>[词]</b> 减权。打开开关后每次生成自动拼进提示词，是否生效取决于所选模型认不认这类标签。</p>
         <div id="artistList"></div>
@@ -571,6 +589,19 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
   </nav>
 
   <!-- overlays -->
+  <div class="overlay center" id="recipeOv"><div class="modal" style="width:min(92%,440px);max-height:82%;overflow:auto;text-align:left">
+    <h3 style="font-size:15px;margin:0 0 4px">自定义画风配方器</h3>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">自由组合下面五个维度（可多选），拼出独一无二的画风串，存起来一键复用。</p>
+    <div id="rBody"></div>
+    <div class="rlabel" style="margin-top:12px">自由补充</div>
+    <textarea id="rExtra" rows="2" placeholder="其他氛围描述，中英文都行，比如：夏天的海边，黄昏" style="width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:12.5px;outline:none;color:var(--ink);resize:vertical"></textarea>
+    <div class="rprev" id="rPrev">还没选，先从上面挑几个～</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="mini" id="rReset" style="flex:0 0 auto">重置</button>
+      <button class="mini" id="rSaveArtist" style="flex:1;border-color:var(--accent);color:var(--accent)">存为画师串</button>
+      <button class="mini" id="rToInput" style="flex:1;background:var(--accent);color:#fff;border-color:var(--accent)">拼入输入框</button>
+    </div>
+  </div></div>
   <div class="overlay" id="sheetOv"><div class="sheet">
     <div class="grab"></div><div class="s-title" id="sheetTitle"></div><div id="sheetItems"></div>
   </div></div>
@@ -921,8 +952,8 @@ function openSheet(title,items){
   });
   $('#sheetOv').classList.add('show');
 }
-function closeOverlays(){$$('#sheetOv,#modalOv').forEach(o=>o.classList.remove('show'));$('#viewer').classList.remove('show');}
-$$('#sheetOv,#modalOv').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeOverlays();}));
+function closeOverlays(){$$('#sheetOv,#modalOv,#recipeOv').forEach(o=>o.classList.remove('show'));$('#viewer').classList.remove('show');}
+$$('#sheetOv,#modalOv,#recipeOv').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeOverlays();}));
 
 let modalCb=null;
 function askConfirm(title,text,cb){$('#mTitle').textContent=title;$('#mText').textContent=text;modalCb=cb;$('#modalOv').classList.add('show');}
@@ -1053,6 +1084,96 @@ $('#transSend').onclick=async()=>{
   await runGeneration({userText:zh,promptEn:en});
 };
 $('#transClose').onclick=hideTransBar;
+
+/* ================= 热门画风库 & 画风配方器 ================= */
+const STYLE_LIB=[
+  {n:'90s 漫截风',s:'1990s \\(style\\), retro artstyle, anime screencap, film grain'},
+  {n:'黑白漫画分镜',s:'monochrome, manga panel, screentone, halftone, ink illustration'},
+  {n:'赛璐璐动画',s:'cel shading, flat color, anime coloring, clean lineart'},
+  {n:'轻小说插画',s:'light novel illustration, soft shading, detailed eyes, pastel colors'},
+  {n:'治愈绘本感',s:'hand painted background, warm sunlight, soft watercolor, gentle palette'},
+  {n:'黄昏胶片感',s:'golden hour lighting, kodak portra, film grain, nostalgic mood'},
+  {n:'厚涂油画',s:'impasto, thick paint, oil painting texture, visible brush strokes'},
+  {n:'透明水彩',s:'transparent watercolor, soft edges, white space, light bleeding'},
+  {n:'赛博霓虹',s:'neon lighting, cyberpunk, rain reflections, high contrast'},
+  {n:'国风水墨',s:'ink wash painting, chinese painting, brush strokes, minimal color'},
+];
+function renderStyleLib(){
+  const box=$('#styleLib');if(!box)return;
+  $('#libCount').textContent=STYLE_LIB.length;
+  box.innerHTML='';
+  STYLE_LIB.forEach((it,i)=>{
+    const b=document.createElement('button');b.className='libchip';
+    b.innerHTML='<b>'+esc(it.n)+'</b><span>'+esc(it.s)+'</span>';
+    b.onclick=()=>{
+      if(S.artists.some(a=>a.name===it.n)){toast('「'+it.n+'」已经在画师串里了');return;}
+      S.artists.unshift({id:uid(),name:it.n,str:it.s,on:true});
+      persist('xy_artists',S.artists,false);renderArtists();
+      toast('「'+it.n+'」已加入画师串并启用');
+    };
+    box.appendChild(b);
+  });
+}
+const RECIPE=[
+  ['媒介',[['水彩','watercolor'],['厚涂','impasto, thick paint'],['赛璐璐','cel shading, flat color'],['素描','sketch, graphite strokes'],['3D 渲染','3d render, octane render'],['胶片写真','film photography, kodak portra'],['像素','pixel art'],['水墨','ink wash painting']]],
+  ['线条',[['细线','clean thin lineart'],['粗线','bold outlines'],['素描线','rough sketch lines'],['无轮廓','no outlines, lineless']]],
+  ['光影',[['柔光','soft lighting'],['强对比','dramatic shadows, high contrast'],['逆光','backlighting, rim light'],['电影光','cinematic lighting, volumetric light'],['平面光','flat lighting']]],
+  ['色彩',[['高饱和','vivid colors'],['低饱和','muted colors'],['莫兰迪','morandi palette, greyish pastel'],['糖果色','candy colors'],['黑白点缀','monochrome with accent color'],['暖调','warm color scheme'],['冷调','cool color scheme']]],
+  ['质感',[['胶片颗粒','film grain'],['纸纹','paper texture'],['油画布','canvas texture'],['光斑','bokeh, glowing particles'],['做旧','vintage, worn feel']]],
+];
+let rSel={};
+function rCompose(){
+  const parts=[];
+  RECIPE.forEach(([cat])=>{(rSel[cat]||[]).forEach(idx=>parts.push(RECIPE.find(r=>r[0]===cat)[1][idx][1]));});
+  const extra=$('#rExtra').value.trim();
+  if(extra)parts.push(extra);
+  return parts.join(', ');
+}
+function rRefresh(){
+  const t=rCompose();
+  $('#rPrev').textContent=t||'还没选，先从上面挑几个～';
+  $$('#rBody .rchip').forEach(c=>{
+    const cat=c.dataset.cat,idx=+c.dataset.idx;
+    c.classList.toggle('on',(rSel[cat]||[]).includes(idx));
+  });
+}
+$('#btnRecipe').onclick=()=>{
+  rSel={};$('#rExtra').value='';
+  const body=$('#rBody');body.innerHTML='';
+  RECIPE.forEach(([cat,tags])=>{
+    const lab=document.createElement('div');lab.className='rlabel';lab.textContent=cat;
+    const wrap=document.createElement('div');wrap.className='rchips';
+    tags.forEach(([cn,en],idx)=>{
+      const c=document.createElement('button');c.className='rchip';c.textContent=cn;c.dataset.cat=cat;c.dataset.idx=idx;
+      c.onclick=()=>{
+        const arr=rSel[cat]||(rSel[cat]=[]);
+        const at=arr.indexOf(idx);
+        if(at>=0)arr.splice(at,1);else arr.push(idx);
+        rRefresh();
+      };
+      wrap.appendChild(c);
+    });
+    body.appendChild(lab);body.appendChild(wrap);
+  });
+  rRefresh();
+  $('#recipeOv').classList.add('show');
+};
+$('#rReset').onclick=()=>{rSel={};$('#rExtra').value='';rRefresh();};
+$('#rToInput').onclick=()=>{
+  const t=rCompose();
+  if(!t){toast('先挑几个维度再拼');return;}
+  const input=$('#input');
+  input.value+=(input.value?'，':'')+t;autoGrow();closeOverlays();input.focus();
+};
+$('#rSaveArtist').onclick=()=>{
+  const t=rCompose();
+  if(!t){toast('先挑几个维度再存');return;}
+  const name=prompt('给这套画风起个名字：','我的自定义画风');
+  if(!name)return;
+  S.artists.unshift({id:uid(),name:(name.trim()||'自定义画风').slice(0,20),str:t.slice(0,300),on:true});
+  persist('xy_artists',S.artists,false);renderArtists();closeOverlays();
+  toast('已存为画师串并启用');
+};
 
 /* ================= 常用提词片段 ================= */
 function renderArtists(){
@@ -1787,7 +1908,7 @@ if(splash){
 applyTheme();
 // 上次中途退出留下的生成中气泡，标记为中断
 S.msgs.forEach(m=>{if(m.kind==='progress'){m.kind='error';m.text='上次生成被中断了，重新发一次就行。';}});
-renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();renderSnips();renderArtists();renderGallery();
+renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();renderSnips();renderArtists();renderStyleLib();renderGallery();
 if(S.presets.length&&!S.editingPreset)fillForm(activePreset()||S.presets[0]);
 else fillForm(null);
 </script>
