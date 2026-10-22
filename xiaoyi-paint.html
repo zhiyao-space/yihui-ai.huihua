@@ -133,6 +133,18 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 .bubble.err{border-color:color-mix(in srgb,var(--danger) 45%, transparent);}
 .bubble.err .etag{color:var(--danger); font-weight:600; font-size:13px; margin-bottom:2px;}
 
+/* ===== status indicators ===== */
+.dot.busy{background:#e0a05a; box-shadow:0 0 0 3px color-mix(in srgb,#e0a05a 22%, transparent);}
+.typing{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--muted); min-height:22px;}
+.tdots{display:inline-flex; gap:3.5px; flex:0 0 auto;}
+.tdots i{width:5px; height:5px; border-radius:50%; background:var(--muted); animation:tb 1.2s infinite;}
+.tdots i:nth-child(2){animation-delay:.15s;}
+.tdots i:nth-child(3){animation-delay:.3s;}
+@keyframes tb{0%,60%,100%{opacity:.25; transform:translateY(0);}30%{opacity:1; transform:translateY(-2.5px);}}
+.rstat{color:var(--faint);}
+.rstat.rd{color:var(--ok);}
+.m-item .check{margin-left:4px; color:var(--ok); font-weight:600; flex:0 0 auto;}
+
 /* empty hero */
 .hero{text-align:center; padding:34px 10px 16px;}
 .hero .avatar{width:64px;height:64px;border-radius:20px; margin:0 auto 14px;}
@@ -269,7 +281,7 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 .viewer .v-top{display:flex; justify-content:flex-end; padding:14px;}
 .viewer .v-img{flex:1; display:flex; align-items:center; justify-content:center; padding:8px 16px; min-height:0;}
 .viewer .v-img img{max-width:100%; max-height:100%; border-radius:14px; box-shadow:var(--shadow);}
-.viewer .v-prompt{font-size:11.5px; color:color-mix(in srgb,var(--ink) 72%, transparent); text-align:center; padding:6px 22px; max-height:44px; overflow:hidden;}
+.viewer .v-prompt{font-size:11.5px; color:color-mix(in srgb,var(--ink) 72%, transparent); text-align:center; padding:6px 22px; max-height:44px; overflow:hidden; white-space:pre-line;}
 .viewer .v-acts{display:flex; gap:10px; justify-content:center; padding:12px 16px calc(18px + env(safe-area-inset-bottom));}
 .viewer .v-acts .mini{background:color-mix(in srgb,var(--surface) 82%, transparent); border-color:transparent; padding:9px 16px; font-size:13px;}
 #toast{
@@ -377,18 +389,25 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
             </div>
           </div>
           <div class="field">
-            <label>绘画模型 <span style="color:var(--faint)">（点「获取模型」自动拉取）</span></label>
+            <label>绘画模型 <span style="color:var(--faint)">（点「获取模型」拉取，再点 ▼ 选择）</span></label>
             <div class="in-wrap">
-              <input id="fModel" list="dlModels" placeholder="gpt-image-1 / dall-e-3 / flux…" autocapitalize="off">
+              <input id="fModel" placeholder="gpt-image-1 / dall-e-3 / flux…" autocapitalize="off">
+              <button class="mini" id="btnModelPick" type="button" style="flex:0 0 auto;padding:6px 10px" title="选择模型">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg>
+              </button>
               <button class="mini" id="btnModels" type="button" style="flex:0 0 auto">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11.5a8 8 0 1 0-2.2 6.4M20 5.5v5h-5"/></svg>获取模型
               </button>
             </div>
-            <datalist id="dlModels"></datalist>
           </div>
           <div class="field">
-            <label>对话模型 <span style="color:var(--faint)">（可选，用于小一聊天回复，不填则用内置语气）</span></label>
-            <input id="fChat" list="dlModels" placeholder="gpt-4o-mini / deepseek-chat…" autocapitalize="off">
+            <label>对话模型 <span style="color:var(--faint)">（可选，用于小一聊天与提示词翻译）</span></label>
+            <div class="in-wrap">
+              <input id="fChat" placeholder="gpt-4o-mini / deepseek-chat…" autocapitalize="off">
+              <button class="mini" id="btnChatPick" type="button" style="flex:0 0 auto;padding:6px 10px" title="选择模型">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg>
+              </button>
+            </div>
           </div>
           <div class="acts">
             <button class="mini pri" id="btnSave">保存配置</button>
@@ -410,6 +429,7 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
           <div class="note">
             <b>提示</b><br>
             · 兼容 OpenAI 格式中转站：<b>GET /v1/models</b>、<b>POST /v1/images/generations</b>，带参考图/画风/形象时走 <b>/v1/images/edits</b>。<br>
+            · 内置<b>提示词翻译器</b>：开启后，中文提示词会先翻译成英文再发给绘画模型（优先用已配置的对话模型，其次用内置免费翻译接口）；在「助手 → 生成参数」里开关。<br>
             · 若浏览器提示跨域（CORS）失败，请选择支持 CORS 的中转站地址，或用允许跨域的方式部署本页。<br>
             · 所有配置与图片仅保存在本机浏览器，不会上传到任何服务器。
           </div>
@@ -485,8 +505,10 @@ const S={
   charSel:store.get('xy_chars_sel',[]),
   theme:store.get('xy_theme','dark'),
   size:store.get('xy_size','1024x1024'),
+  translate:store.get('xy_translate',true),
   quote:null, refs:[], editingPreset:null, busy:false, viewerMsg:null,
 };
+let editModels=[]; // 当前表单可选择的模型列表（未保存也能用）
 const activePreset=()=>S.presets.find(p=>p.id===S.activeId)||null;
 const activeStyle=()=>S.styles.find(x=>x.id===S.styleActive)||null;
 const selChars=()=>S.chars.filter(c=>S.charSel.includes(c.id));
@@ -584,6 +606,40 @@ async function apiChat(p,messages){
   return (j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content||'').trim();
 }
 
+/* ================= 内置提示词翻译器 ================= */
+const CJK_RE=/[\u3400-\u9fff\uf900-\ufaff]/;
+async function translatePrompt(p,text){
+  if(!S.translate||!CJK_RE.test(text))return text;
+  // 1) 优先用已配置的对话模型翻译（质量最好）
+  if(p&&p.chatModel){
+    try{
+      const r=await fetch(apiRoot(p.baseUrl)+'/chat/completions',{
+        method:'POST',headers:authHeaders(p.key),
+        body:JSON.stringify({model:p.chatModel,temperature:.2,max_tokens:600,messages:[
+          {role:'system',content:'You are a professional translator for text-to-image prompts. Translate the user\'s Chinese prompt into a vivid, detailed English image-generation prompt. Keep all subjects, style words and composition details. Output ONLY the English prompt, nothing else.'},
+          {role:'user',content:text}
+        ]})
+      });
+      if(r.ok){
+        const j=await r.json();
+        const t=((j.choices||[])[0]?.message?.content||'').trim();
+        if(t)return t.replace(/^["']|["']$/g,'');
+      }
+    }catch(e){}
+  }
+  // 2) 内置免费翻译接口兜底
+  try{
+    const q=encodeURIComponent(text.slice(0,480));
+    const r=await fetch('https://api.mymemory.translated.net/get?q='+q+'&langpair=zh-CN|en-GB');
+    if(r.ok){
+      const j=await r.json();
+      const t=j&&j.responseData&&j.responseData.translatedText;
+      if(t)return String(t);
+    }
+  }catch(e){}
+  return text; // 翻译失败按原文发送
+}
+
 /* ================= 小一 persona ================= */
 const PERSONA='你叫小一，是一个AI绘画助手里的人物。性格冷静沉稳、做事靠谱，说话细致但简短，像真人一样自然口语化，不夸张不卖萌。回复一般不超过两句话。用户会跟你讨论绘画需求，你可以给一句到位的确认或简短建议。';
 const ACKS=['好，收到。我开始画了，稍等。','明白，这就去画。','可以，画的时候我会按你的要求来。','嗯，思路清楚了，开始。','行，等我一下。'];
@@ -628,11 +684,44 @@ function msgEl(m){
   if(m.kind==='progress')inner+=progressHTML(m);
   if(m.kind==='error')inner='';
   const bubble=`<div class="bubble ${m.kind==='error'?'err':''}">${inner}</div>`;
-  div.innerHTML=`${m.role==='user'?'':av}${bubble}<div class="time">${m.time||fmtTime(m.ts)}</div>${m.role==='user'?av:''}`;
+  const stat=m.role==='user'?` · <span class="rstat${m.read?' rd':''}">${m.read?'已读':'已送达'}</span>`:'';
+  div.innerHTML=`${m.role==='user'?'':av}${bubble}<div class="time">${m.time||fmtTime(m.ts)}${stat}</div>${m.role==='user'?av:''}`;
   const img=div.querySelector('img.gen');
   if(img){img.onclick=e=>{e.stopPropagation();openViewer(m);};}
   bindPress(div,()=>sheetFor(m));
   return div;
+}
+
+/* ================= presence & typing status ================= */
+function setPresence(txt,busy){
+  const sub=document.querySelector('#view-chat .hdr .sub');
+  if(sub)sub.innerHTML='<span class="dot'+(busy?' busy':'')+'"></span>'+esc(txt);
+}
+let statusEl=null;
+function showStatus(label){
+  hideStatus();
+  const list=$('#chatList');
+  const hero=list.querySelector('.hero');if(hero)list.innerHTML='';
+  const div=document.createElement('div');
+  div.className='msg';
+  div.innerHTML=`<div class="avatar sm">${AVATAR_SVG}</div><div class="bubble"><div class="typing"><span class="tdots"><i></i><i></i><i></i></span><span class="tlab">${esc(label)}</span></div></div>`;
+  list.appendChild(div);statusEl=div;scrollBottom();
+}
+function setStatus(label){if(statusEl)statusEl.querySelector('.tlab').textContent=label;scrollBottom();}
+function hideStatus(){if(statusEl){statusEl.remove();statusEl=null;}}
+function markLastRead(){
+  for(let i=S.msgs.length-1;i>=0;i--){
+    const m=S.msgs[i];
+    if(m.role==='user'){
+      if(!m.read){
+        m.read=true;persistMsgs();
+        const el=document.querySelector('.msg[data-id="'+m.id+'"]');
+        const rs=el&&el.querySelector('.rstat');
+        if(rs){rs.textContent='已读';rs.classList.add('rd');}
+      }
+      return;
+    }
+  }
 }
 function progressHTML(m){
   return `<div class="prog">
@@ -711,7 +800,7 @@ $('#mOk').onclick=()=>{closeOverlays();modalCb&&modalCb();};
 function openViewer(m){
   if(!m.img)return;
   S.viewerMsg=m;$('#vImg').src=m.img;
-  $('#vPrompt').textContent=m.prompt||m.text||'';
+  $('#vPrompt').textContent=(m.prompt||m.text||'')+(m.en?'\nEN: '+m.en:'');
   $('#viewer').classList.add('show');
 }
 $('#vClose').onclick=closeOverlays;
@@ -750,9 +839,14 @@ $('#btnParam').onclick=()=>{
   wrap.innerHTML=`<div class="field"><label>图片尺寸</label><select id="sizeSel" style="width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:13.5px;outline:none">
     ${['1024x1024','1024x1536','1536x1024','512x512'].map(s=>`<option ${s===S.size?'selected':''}>${s}</option>`).join('')}
   </select></div>
+  <div class="field" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <label style="margin:0;flex:1">提示词自动翻译成英文<br><span style="font-size:11px;color:var(--faint)">绘画模型不支持中文时建议开启，发图前自动先翻译</span></label>
+    <input type="checkbox" id="trToggle" ${S.translate?'checked':''} style="width:21px;height:21px;accent-color:var(--accent);flex:0 0 auto">
+  </div>
   <div style="font-size:11.5px;color:var(--muted)">比例接近 1:1 / 2:3 竖图 / 3:2 横图，实际支持取决于所选模型。</div>`;
   box.appendChild(wrap);
   wrap.querySelector('#sizeSel').onchange=e=>{S.size=e.target.value;store.set('xy_size',S.size);};
+  wrap.querySelector('#trToggle').onchange=e=>{S.translate=e.target.checked;store.set('xy_translate',S.translate);toast(S.translate?'已开启自动翻译':'已关闭自动翻译');};
 };
 $('#btnRef').onclick=()=>$('#fileRef').click();
 $('#fileRef').onchange=async e=>{
@@ -822,34 +916,47 @@ async function handleSend(){
   if(wantsModify&&lastImg){await doModify(text,lastImg);return;}
   if(wantsDraw){
     if(hasRefs){
-      pushMsg({id:uid(),role:'user',kind:'image',img:S.refs[0].img,text,ts:Date.now()});
+      pushMsg({id:uid(),role:'user',kind:'image',img:S.refs[0].img,text,read:false,ts:Date.now()});
     }else{
-      pushMsg({id:uid(),role:'user',kind:'text',text,quote:S.quote?S.quote.who+'：'+S.quote.text:undefined,ts:Date.now()});
+      pushMsg({id:uid(),role:'user',kind:'text',text,read:false,quote:S.quote?S.quote.who+'：'+S.quote.text:undefined,ts:Date.now()});
     }
     await runGeneration({userText:text});
     return;
   }
   // 普通聊天
-  pushMsg({id:uid(),role:'user',kind:'text',text,quote:S.quote?S.quote.who+'：'+S.quote.text:undefined,ts:Date.now()});
+  pushMsg({id:uid(),role:'user',kind:'text',text,read:false,quote:S.quote?S.quote.who+'：'+S.quote.text:undefined,ts:Date.now()});
   const q=S.quote;S.quote=null;renderQuote();
   await chatReply(text,q,p);
 }
 
 async function chatReply(text,quote,p){
-  const hist=S.msgs.slice(-10).filter(m=>m.kind!=='progress').map(m=>{
-    const c=m.kind==='image'?('[已生成一张图] '+(m.prompt||'')):(m.text||'');
-    return {role:m.role==='user'?'user':'assistant',content:c};
-  });
-  const msgs=[{role:'system',content:PERSONA+' 当前绘画设置：'+ctxSummary()}];
-  if(quote)msgs.push({role:'system',content:'用户引用了消息：'+quote.who+'：'+quote.text});
-  msgs.push(...hist);
-  if(p&&p.chatModel){
-    try{
-      const reply=await apiChat(p,msgs);
-      if(reply){pushMsg({id:uid(),role:'ai',kind:'text',text:reply,ts:Date.now()});return;}
-    }catch(e){/* 落到本地回复 */}
+  S.busy=true;$('#btnSend').disabled=true;
+  setPresence('思考中…',true);markLastRead();showStatus('思考中…');
+  try{
+    const hist=S.msgs.slice(-10).filter(m=>m.kind!=='progress').map(m=>{
+      const c=m.kind==='image'?('[已生成一张图] '+(m.prompt||'')):(m.text||'');
+      return {role:m.role==='user'?'user':'assistant',content:c};
+    });
+    const msgs=[{role:'system',content:PERSONA+' 当前绘画设置：'+ctxSummary()}];
+    if(quote)msgs.push({role:'system',content:'用户引用了消息：'+quote.who+'：'+quote.text});
+    msgs.push(...hist);
+    if(p&&p.chatModel){
+      try{
+        const reply=await apiChat(p,msgs);
+        if(reply){
+          hideStatus();
+          pushMsg({id:uid(),role:'ai',kind:'text',text:reply,ts:Date.now()});
+          return;
+        }
+      }catch(e){/* 落到本地回复 */}
+    }
+    hideStatus();
+    pushMsg({id:uid(),role:'ai',kind:'text',text:localReply(text),ts:Date.now()});
+  }finally{
+    hideStatus();
+    S.busy=false;$('#btnSend').disabled=false;
+    setPresence('在线 · 随时开画');
   }
-  pushMsg({id:uid(),role:'ai',kind:'text',text:localReply(text),ts:Date.now()});
 }
 function localReply(text){
   if(/怎么用|怎么玩|帮助|能做什么|你是谁/.test(text))
@@ -882,8 +989,17 @@ async function runGeneration({userText,extraPrompt='',refImgs=[]}){
   const prompt=parts.filter(Boolean).join('\n');
   const refs=[...(st?[st.img]:[]),...cs.map(c=>c.img),...refImgs,...S.refs.map(r=>r.img)];
 
-  const prog={id:uid(),role:'ai',kind:'progress',text:pick(ACKS),pct:6,stage:'提交请求',ts:Date.now()};
+  const prog={id:uid(),role:'ai',kind:'progress',text:pick(ACKS),pct:4,stage:'已读 · 理解需求',ts:Date.now()};
   pushMsg(prog);S.busy=true;$('#btnSend').disabled=true;
+  setPresence('正在画…',true);markLastRead();
+  // 提示词翻译（绘画模型不支持中文时，先翻成英文再发）
+  const needTr=S.translate&&CJK_RE.test(prompt);
+  updateProgress(prog,6,needTr?'翻译提示词…':'提交请求');
+  let promptEn=prompt;
+  if(needTr){
+    promptEn=await translatePrompt(p,prompt);
+    if(promptEn===prompt)toast('翻译服务不可用，已按原文发送');
+  }
   const t0=Date.now();
   const timer=setInterval(()=>{
     if(prog.kind!=='progress')return clearInterval(timer);
@@ -891,18 +1007,20 @@ async function runGeneration({userText,extraPrompt='',refImgs=[]}){
     updateProgress(prog,next,next<25?'提交请求':next<65?'模型生成中':'接收图片');
   },420);
   try{
-    const img=await apiGenerate(p,{prompt,refDataUrls:refs,size:S.size});
+    const img=await apiGenerate(p,{prompt:promptEn,refDataUrls:refs,size:S.size});
     const wait=Math.max(0,600-(Date.now()-t0));
     await new Promise(r=>setTimeout(r,wait));
     updateProgress(prog,100,'完成');
     const idx=S.msgs.indexOf(prog);
-    S.msgs[idx]={id:prog.id,role:'ai',kind:'image',img,prompt,text:pick(DONE_LINES),refs:refs.length,ts:prog.ts};
+    S.msgs[idx]={id:prog.id,role:'ai',kind:'image',img,prompt,en:(needTr&&promptEn!==prompt)?promptEn:undefined,text:pick(DONE_LINES),refs:refs.length,ts:prog.ts};
     persistMsgs();
   }catch(err){
     clearInterval(timer);
+    setPresence('出了点问题');
     const idx=S.msgs.indexOf(prog);
     S.msgs[idx]={id:prog.id,role:'ai',kind:'error',text:pick(FAIL_LINES)+'\n（'+String(err.message||err).slice(0,140)+'）',ts:prog.ts};
     persistMsgs();
+    setTimeout(()=>setPresence('在线 · 随时开画'),2600);
   }finally{
     S.busy=false;$('#btnSend').disabled=false;
     S.refs=[];renderCtx();renderMsgs();
@@ -910,7 +1028,7 @@ async function runGeneration({userText,extraPrompt='',refImgs=[]}){
 }
 
 async function doModify(text,lastImg){
-  pushMsg({id:uid(),role:'user',kind:'text',text,ts:Date.now()});
+  pushMsg({id:uid(),role:'user',kind:'text',text,read:false,ts:Date.now()});
   await runGeneration({
     userText:'',
     extraPrompt:'基于参考图（上一张成图）修改：'+text+'。只调整以上内容，其余构图、画风、角色保持不变。',
@@ -1071,10 +1189,9 @@ function fillForm(p){
   $('#fKey').value=p?.key||'';
   $('#fModel').value=p?.model||'';
   $('#fChat').value=p?.chatModel||'';
+  editModels=(p?.models||[]).slice();
   $('#btnDel').style.display=p?'inline-flex':'none';
   $('#testOut').innerHTML='';
-  const dl=$('#dlModels');dl.innerHTML='';
-  (p?.models||[]).forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
   $('#formSec').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function collectForm(){
@@ -1086,8 +1203,48 @@ function collectForm(){
     name:$('#fName').value.trim()||hostOf(baseUrl),
     baseUrl,key:$('#fKey').value.trim(),
     model:$('#fModel').value.trim(),chatModel:$('#fChat').value.trim(),
-    models:S.presets.find(x=>x.id===S.editingPreset)?.models||[]
+    models:editModels.slice()
   };
+}
+
+/* ================= 模型选择器（▼） ================= */
+function openModelPicker(target){
+  if(!editModels.length){toast('还没有模型列表，先点「获取模型」拉取');return;}
+  const cur=$(target).value.trim();
+  openSheet('选择模型 · 共 '+editModels.length+' 个',[]);
+  const box=$('#sheetItems');box.innerHTML='';
+  // 绘画类模型排前面
+  const sorted=[...editModels].sort((a,b)=>(IMAGE_RE.test(b)?1:0)-(IMAGE_RE.test(a)?1:0));
+  const search=document.createElement('input');
+  search.className='m-search';
+  search.placeholder='搜索模型…';
+  search.style.cssText='width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:9px 12px;font-size:13px;outline:none;color:var(--ink);margin:2px 4px 8px';
+  const wrap=document.createElement('div');wrap.style.padding='0 4px 6px';
+  wrap.appendChild(search);box.appendChild(wrap);
+  const render=q=>{
+    box.querySelectorAll('.m-item,.m-empty').forEach(x=>x.remove());
+    const hit=sorted.filter(m=>!q||m.toLowerCase().includes(q));
+    if(!hit.length){
+      const d=document.createElement('div');d.className='m-empty note';
+      d.style.cssText='margin:4px 0 8px';d.textContent='没有匹配的模型';
+      box.appendChild(d);return;
+    }
+    hit.forEach(m=>{
+      const isImg=IMAGE_RE.test(m);
+      const b=document.createElement('button');
+      b.className='s-item m-item';
+      b.innerHTML=`<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m)}</span>`
+        +(isImg?'<span class="badge dim" style="flex:0 0 auto">绘画</span>':'')
+        +(cur===m?'<span class="check">✓</span>':'');
+      b.onclick=()=>{
+        $(target).value=m;closeOverlays();
+        if(target==='#fModel')toast('绘画模型：'+m);else toast('对话模型：'+m);
+      };
+      box.appendChild(b);
+    });
+  };
+  search.oninput=()=>render(search.value.trim().toLowerCase());
+  render('');
 }
 $('#btnNewPreset').onclick=()=>fillForm(null);
 $('#btnEye').onclick=()=>{const k=$('#fKey');k.type=k.type==='password'?'text':'password';};
@@ -1119,26 +1276,29 @@ $('#btnModels').onclick=async()=>{
   btn.innerHTML='拉取中…';
   try{
     const list=await apiModels({baseUrl,key});
-    const dl=$('#dlModels');dl.innerHTML='';
-    list.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
+    editModels=list.slice();
     // 自动识别：优先挑选绘画模型
     const imgModel=list.find(m=>IMAGE_RE.test(m));
     if(imgModel&&!$('#fModel').value)$('#fModel').value=imgModel;
-    else if(imgModel)toast('已拉取 '+list.length+' 个模型，绘画模型已定位');
-    if(!imgModel&&list.length)toast('拉取到 '+list.length+' 个模型，未识别出绘画类，请手动选');
-    if(!list.length)toast('接口返回模型列表为空');
+    toast('已拉取 '+list.length+' 个模型'+(imgModel?'，绘画模型已定位':''));
+    // 拉取成功后自动弹出选择器，点选即可
+    if(list.length)openModelPicker('#fModel');
   }catch(e){
     toast('拉取失败：'+String(e.message||e).slice(0,80));
   }finally{btn.disabled=false;btn.innerHTML=old;}
 };
+$('#btnModelPick').onclick=()=>openModelPicker('#fModel');
+$('#btnChatPick').onclick=()=>openModelPicker('#fChat');
 $('#btnTest').onclick=async()=>{
   const p=collectForm();if(!p)return;
   if(!p.model){toast('请先选择绘画模型');return;}
   const out=$('#testOut');
-  out.innerHTML=`<div class="prog"><div class="skel"></div><div class="plabel"><span>测试生成中…</span></div><div class="bar"><i style="width:60%"></i></div></div>`;
+  out.innerHTML=`<div class="prog"><div class="skel"></div><div class="plabel"><span id="testStage">翻译提示词…</span></div><div class="bar"><i style="width:30%"></i></div></div>`;
   const t0=Date.now();
   try{
-    const img=await apiGenerate(p,{prompt:'连接测试：白色背景中央一枚大的红色圆形，极简扁平风格。',size:'1024x1024'});
+    const testPrompt=await translatePrompt(p,'连接测试：白色背景中央一枚大的红色圆形，极简扁平风格。');
+    const stage=$('#testStage');if(stage)stage.textContent='测试生成中…';
+    const img=await apiGenerate(p,{prompt:testPrompt,size:'1024x1024'});
     const sec=((Date.now()-t0)/1000).toFixed(1);
     out.innerHTML=`<div class="ok-line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>连接正常 · 返回图片成功 · ${sec}s</div><img src="${img}">`;
   }catch(e){
@@ -1157,6 +1317,8 @@ $('#btnTheme2').onclick=toggleTheme;
 
 /* ================= init ================= */
 applyTheme();
+// 上次中途退出留下的生成中气泡，标记为中断
+S.msgs.forEach(m=>{if(m.kind==='progress'){m.kind='error';m.text='上次生成被中断了，重新发一次就行。';}});
 renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();
 if(S.presets.length&&!S.editingPreset)fillForm(activePreset()||S.presets[0]);
 else fillForm(null);
