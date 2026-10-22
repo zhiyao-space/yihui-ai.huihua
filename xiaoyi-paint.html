@@ -466,6 +466,24 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
         </div>
       </div>
       <div class="sec">
+        <div class="sec-h"><h3>备份与迁移</h3></div>
+        <div class="card">
+          <div class="field" style="margin:0 0 8px"><input type="password" id="bkPass" placeholder="备份密码（可选，恢复时必须输入同一个）" style="width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:13px;outline:none;color:var(--ink)"></div>
+          <div style="display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:8px">
+            <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="bkMedia" checked style="accent-color:var(--accent)">含画风与形象图</label>
+            <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="bkMsgs" style="accent-color:var(--accent)">含聊天与画廊</label>
+          </div>
+          <textarea id="bkText" placeholder="点「生成备份」后这里出现备份串：复制存到备忘录/网盘；换设备时粘贴到这里，输同一个密码，点「恢复导入」即可完整找回" style="width:100%;min-height:64px;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:11px;font-family:monospace;outline:none;color:var(--ink);resize:vertical"></textarea>
+          <div class="acts" style="margin-top:8px">
+            <button class="mini" id="btnBkExport">生成备份</button>
+            <button class="mini" id="btnBkCopy">复制</button>
+            <button class="mini" id="btnBkFile">存为文件</button>
+            <button class="mini" id="btnBkImport">恢复导入</button>
+          </div>
+          <div class="note" style="margin-top:8px"><b>说明</b>：本页数据只存本机浏览器。备份串自带 API 配置、画风与形象图片，设了密码会用 AES-GCM 加密——备份串相当于账号、密码就是钥匙，换设备随时找回；密码忘了无法解密，务必记牢。</div>
+        </div>
+      </div>
+      <div class="sec">
         <div class="sec-h"><h3>其他</h3></div>
         <div class="card">
           <div class="acts" style="margin-top:0">
@@ -1498,6 +1516,85 @@ $('#btnClearRefs').onclick=()=>askConfirm('清空图片数据','将删除所有�
 $('#btnTheme').onclick=toggleTheme;
 $('#btnTheme2').onclick=toggleTheme;
 $('#btnTheme3').onclick=toggleTheme;
+
+/* ================= 备份与迁移（密码加密，换设备找回） ================= */
+const b64e=buf=>btoa(String.fromCharCode(...new Uint8Array(buf)));
+const b64d=str=>Uint8Array.from(atob(str),c=>c.charCodeAt(0));
+async function deriveKey(pass,salt){
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:1e5,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function packPayload(obj,pass){
+  const json=JSON.stringify(obj);
+  if(!pass)return 'XY0.'+btoa(unescape(encodeURIComponent(json)));
+  if(!(window.crypto&&crypto.subtle)){toast('当前环境不支持加密，已改为无密码导出');return 'XY0.'+btoa(unescape(encodeURIComponent(json)));}
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const k=await deriveKey(pass,salt);
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,new TextEncoder().encode(json));
+  return 'XY1.'+b64e(salt)+'.'+b64e(iv)+'.'+b64e(ct);
+}
+async function unpackPayload(text,pass){
+  text=text.trim();
+  const parts=text.split('.');
+  if(parts[0]==='XY0')return JSON.parse(decodeURIComponent(escape(atob(parts[1]))));
+  if(parts[0]==='XY1'){
+    if(!pass)throw new Error('需要密码');
+    const k=await deriveKey(pass,b64d(parts[1]));
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(parts[2])},k,b64d(parts[3]));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  throw new Error('格式不对');
+}
+function buildBackup(includeMedia,includeMsgs){
+  const o={v:1,ts:Date.now(),presets:S.presets,activeId:S.activeId,snips:S.snips,size:S.size,count:S.count,strength:S.strength,translate:S.translate};
+  if(includeMedia){o.styles=S.styles;o.chars=S.chars;o.charSel=S.charSel;o.styleActive=S.styleActive;}
+  if(includeMsgs)o.msgs=S.msgs;
+  return o;
+}
+function applyBackup(o){
+  if(!o||!Array.isArray(o.presets))throw new Error('内容不完整');
+  S.presets=o.presets;S.activeId=o.activeId||null;
+  if(o.snips)S.snips=o.snips;
+  ['size','count','strength','translate'].forEach(k=>{if(o[k]!==undefined)S[k]=o[k];});
+  persist('xy_presets',S.presets,false);store.set('xy_active',S.activeId);
+  persist('xy_snips',S.snips,false);
+  store.set('xy_size',S.size);store.set('xy_count',S.count);store.set('xy_strength',S.strength);store.set('xy_translate',S.translate);
+  if(o.styles){S.styles=o.styles;S.chars=o.chars||[];S.charSel=o.charSel||[];S.styleActive=o.styleActive||null;
+    persist('xy_styles',S.styles);persist('xy_chars',S.chars);store.set('xy_chars_sel',S.charSel);store.set('xy_style_active',S.styleActive);
+    renderStyles();renderChars();renderCtx();}
+  if(o.msgs){S.msgs=o.msgs;persistMsgs();}
+  renderPresets();fillForm(activePreset()||S.presets[0]||null);renderSnips();renderMsgs();
+}
+$('#btnBkExport').onclick=async()=>{
+  const pass=$('#bkPass').value;
+  const text=await packPayload(buildBackup($('#bkMedia').checked,$('#bkMsgs').checked),pass);
+  $('#bkText').value=text;
+  toast(pass?'已加密导出：复制保存好，密码丢失无法找回':'已导出：复制保存好这份备份串');
+};
+$('#btnBkCopy').onclick=async()=>{
+  const t=$('#bkText').value.trim();if(!t)return toast('先点「生成备份」');
+  try{await navigator.clipboard.writeText(t);toast('备份串已复制');}catch(e){$('#bkText').select();toast('已全选，请手动复制');}
+};
+$('#btnBkFile').onclick=()=>{
+  const t=$('#bkText').value.trim();if(!t)return toast('先点「生成备份」');
+  const a=document.createElement('a');
+  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(t);
+  a.download='xiaoyi-backup-'+new Date().toISOString().slice(0,10)+'.txt';a.click();
+  toast('备份文件已生成');
+};
+$('#btnBkImport').onclick=async()=>{
+  const t=$('#bkText').value.trim();if(!t)return toast('先把备份串粘贴进来');
+  const pass=$('#bkPass').value;
+  try{
+    const o=await unpackPayload(t,pass);
+    askConfirm('恢复备份','将覆盖当前的 API 配置'+($('#bkMedia').checked&&o.styles?'、画风与形象':'')+($('#bkMsgs').checked&&o.msgs?'、聊天记录':'')+'，确定吗？',()=>{
+      try{applyBackup(o);$('#bkText').value='';toast('恢复完成，配置已找回');}
+      catch(e){toast('备份内容不完整');}
+    });
+  }catch(e){
+    toast(String(e.message)==='需要密码'?'这份备份有密码，先在上方填好密码再恢复':'密码错误或备份串损坏');
+  }
+};
 
 /* ================= 作品画廊 ================= */
 function galleryItems(){
