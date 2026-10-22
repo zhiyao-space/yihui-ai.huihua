@@ -144,6 +144,7 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 .rstat{color:var(--faint);}
 .rstat.rd{color:var(--ok);}
 .m-item .check{margin-left:4px; color:var(--ok); font-weight:600; flex:0 0 auto;}
+.en-line{font-size:11px; color:var(--faint); margin-top:5px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;}
 
 /* empty hero */
 .hero{text-align:center; padding:34px 10px 16px;}
@@ -314,12 +315,22 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
       <span class="q" id="quoteText"></span>
       <button id="quoteClear">✕</button>
     </div>
+    <div class="quote-bar" id="transBar" style="display:none">
+      <span style="font-size:11px;border:1px solid var(--rule2);border-radius:6px;padding:1px 6px;flex:0 0 auto">英译</span>
+      <span class="q" id="transText"></span>
+      <button id="transCopy" style="font-size:11px;flex:0 0 auto">复制</button>
+      <button id="transSend" style="font-size:11px;flex:0 0 auto;color:var(--ink);font-weight:600">用英文画</button>
+      <button id="transClose">✕</button>
+    </div>
     <div class="composer">
       <button class="cbtn" id="btnParam" title="生成参数">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.4"/><circle cx="9" cy="17" r="2.4"/></svg>
       </button>
       <button class="cbtn" id="btnRef" title="上传参考图">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M3.5 16.5l4.6-4.2a1.6 1.6 0 0 1 2.2.05L16 18M14.5 15.8l2-1.8a1.6 1.6 0 0 1 2.15.03l2 1.8"/></svg>
+      </button>
+      <button class="cbtn" id="btnTrans" title="英文提词翻译：把中文提示词翻译成英文">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h8M7.5 3.5v2c0 4.5-2 7.7-4.5 9.5"/><path d="M5.5 10.5c1.3 2.8 3.3 4.6 6 5.8"/><path d="M12.5 20.5l4.2-9.5 4.3 9.5M14.2 17h5"/></svg>
       </button>
       <textarea id="input" rows="1" placeholder="描述想画的内容，或跟小一聊聊…"></textarea>
       <button class="cbtn send" id="btnSend" title="发送">
@@ -429,7 +440,7 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
           <div class="note">
             <b>提示</b><br>
             · 兼容 OpenAI 格式中转站：<b>GET /v1/models</b>、<b>POST /v1/images/generations</b>，带参考图/画风/形象时走 <b>/v1/images/edits</b>。<br>
-            · 内置<b>提示词翻译器</b>：开启后，中文提示词会先翻译成英文再发给绘画模型（优先用已配置的对话模型，其次用内置免费翻译接口）；在「助手 → 生成参数」里开关。<br>
+            · 内置<b>英文提词翻译</b>：输入框旁「译」按钮随时把中文提示词翻译成英文，可复制或一键「用英文画」；开启自动翻译后，正常发送也会先翻成英文再出图。<br>
             · 若浏览器提示跨域（CORS）失败，请选择支持 CORS 的中转站地址，或用允许跨域的方式部署本页。<br>
             · 所有配置与图片仅保存在本机浏览器，不会上传到任何服务器。
           </div>
@@ -608,8 +619,9 @@ async function apiChat(p,messages){
 
 /* ================= 内置提示词翻译器 ================= */
 const CJK_RE=/[\u3400-\u9fff\uf900-\ufaff]/;
-async function translatePrompt(p,text){
-  if(!S.translate||!CJK_RE.test(text))return text;
+async function translatePrompt(p,text,force){
+  if(!CJK_RE.test(text))return text; // 没有中文就没有可翻的
+  if(!force&&!S.translate)return text;
   // 1) 优先用已配置的对话模型翻译（质量最好）
   if(p&&p.chatModel){
     try{
@@ -678,6 +690,7 @@ function msgEl(m){
     if(m.img)inner+=`<img class="gen" src="${m.img}" alt="">`;
     else inner+=`<div style="font-size:12.5px;color:var(--muted);padding:6px 0">[图片已清理：本机存储空间不足]</div>`;
     if(m.text)inner+=`<div>${esc(m.text)}</div>`;
+    if(m.en)inner+=`<div class="en-line">EN · ${esc(m.en)}</div>`;
   }else{
     inner+=`<div>${esc(m.text)}</div>`;
   }
@@ -864,6 +877,40 @@ function renderQuote(){
 }
 $('#quoteClear').onclick=()=>{S.quote=null;renderQuote();};
 
+/* ================= 英文提词翻译 ================= */
+let lastTrans=null;
+function hideTransBar(){$('#transBar').style.display='none';lastTrans=null;}
+$('#btnTrans').onclick=async()=>{
+  if(S.busy){toast('等这轮结束再翻译');return;}
+  const text=input.value.trim();
+  if(!text){toast('先输入要翻译的提示词');return;}
+  if(!CJK_RE.test(text)){toast('已经是英文，不需要翻译');return;}
+  const btn=$('#btnTrans');btn.disabled=true;
+  try{
+    const en=await translatePrompt(activePreset(),text,true);
+    if(!en||en===text){toast('翻译服务不可用，请稍后再试');return;}
+    lastTrans={zh:text,en};
+    $('#transText').textContent=en;
+    $('#transBar').style.display='flex';
+    toast('翻译完成，可复制或直接用英文画');
+  }finally{btn.disabled=false;}
+};
+$('#transCopy').onclick=async()=>{
+  if(!lastTrans)return;
+  try{await navigator.clipboard.writeText(lastTrans.en);toast('英文提示词已复制');}catch(e){toast('复制失败');}
+};
+$('#transSend').onclick=async()=>{
+  if(!lastTrans||S.busy)return;
+  const p=activePreset();
+  if(!p||!p.baseUrl||!p.model){toast('先去「配置」页填好地址并选好绘画模型');return;}
+  const zh=lastTrans.zh,en=lastTrans.en;
+  hideTransBar();
+  input.value='';autoGrow();
+  pushMsg({id:uid(),role:'user',kind:'text',text:zh,read:false,ts:Date.now()});
+  await runGeneration({userText:zh,promptEn:en});
+};
+$('#transClose').onclick=hideTransBar;
+
 function renderCtx(){
   const box=$('#ctxChips');box.innerHTML='';
   const st=activeStyle();
@@ -974,7 +1021,7 @@ function ctxSummary(){
   ].join('；');
 }
 
-async function runGeneration({userText,extraPrompt='',refImgs=[]}){
+async function runGeneration({userText,extraPrompt='',refImgs=[],promptEn:enOverride=''}){
   const p=activePreset();
   if(!p||!p.baseUrl||!p.model){
     pushMsg({id:uid(),role:'ai',kind:'error',text:'还没配好 API。去「配置」页填好中转站地址、密钥，拉取并选择绘画模型再试。',ts:Date.now()});
@@ -992,10 +1039,10 @@ async function runGeneration({userText,extraPrompt='',refImgs=[]}){
   const prog={id:uid(),role:'ai',kind:'progress',text:pick(ACKS),pct:4,stage:'已读 · 理解需求',ts:Date.now()};
   pushMsg(prog);S.busy=true;$('#btnSend').disabled=true;
   setPresence('正在画…',true);markLastRead();
-  // 提示词翻译（绘画模型不支持中文时，先翻成英文再发）
-  const needTr=S.translate&&CJK_RE.test(prompt);
+  // 提示词翻译（绘画模型不支持中文时，先翻成英文再发；「用英文画」会直接传入英文，跳过这步）
+  const needTr=!enOverride&&S.translate&&CJK_RE.test(prompt);
   updateProgress(prog,6,needTr?'翻译提示词…':'提交请求');
-  let promptEn=prompt;
+  let promptEn=enOverride||prompt;
   if(needTr){
     promptEn=await translatePrompt(p,prompt);
     if(promptEn===prompt)toast('翻译服务不可用，已按原文发送');
@@ -1012,7 +1059,7 @@ async function runGeneration({userText,extraPrompt='',refImgs=[]}){
     await new Promise(r=>setTimeout(r,wait));
     updateProgress(prog,100,'完成');
     const idx=S.msgs.indexOf(prog);
-    S.msgs[idx]={id:prog.id,role:'ai',kind:'image',img,prompt,en:(needTr&&promptEn!==prompt)?promptEn:undefined,text:pick(DONE_LINES),refs:refs.length,ts:prog.ts};
+    S.msgs[idx]={id:prog.id,role:'ai',kind:'image',img,prompt,en:promptEn!==prompt?promptEn:undefined,text:pick(DONE_LINES),refs:refs.length,ts:prog.ts};
     persistMsgs();
   }catch(err){
     clearInterval(timer);
