@@ -144,6 +144,11 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 .rstat{color:var(--faint);}
 .rstat.rd{color:var(--ok);}
 .m-item .check{margin-left:4px; color:var(--ok); font-weight:600; flex:0 0 auto;}
+.m-list{max-height:48vh; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+.m-tabs{display:flex; gap:6px; padding:0 4px 8px; align-items:center;}
+.m-tabs button{font-size:12px; padding:5px 12px; border-radius:999px; border:1px solid var(--rule2); background:transparent; color:var(--muted); transition:all .15s ease;}
+.m-tabs button.on{background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:600;}
+.m-count{margin-left:auto; font-size:11px; color:var(--faint); flex:0 0 auto;}
 .en-line{font-size:11px; color:var(--faint); margin-top:5px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;}
 
 /* empty hero */
@@ -1258,23 +1263,43 @@ function collectForm(){
 function openModelPicker(target){
   if(!editModels.length){toast('还没有模型列表，先点「获取模型」拉取');return;}
   const cur=$(target).value.trim();
-  openSheet('选择模型 · 共 '+editModels.length+' 个',[]);
+  const imgCount=editModels.filter(m=>IMAGE_RE.test(m)).length;
+  openSheet('选择模型 · 全部 '+editModels.length+' 个，绘画类 '+imgCount+' 个',[]);
   const box=$('#sheetItems');box.innerHTML='';
-  // 绘画类模型排前面
+  // 绘画类模型排前面，其余按原顺序，全部展示不遗漏
   const sorted=[...editModels].sort((a,b)=>(IMAGE_RE.test(b)?1:0)-(IMAGE_RE.test(a)?1:0));
+  const wrap=document.createElement('div');wrap.style.padding='0 4px 6px';
   const search=document.createElement('input');
   search.className='m-search';
-  search.placeholder='搜索模型…';
+  search.placeholder='🔍 搜索模型名，如 flux / dall-e / seedream…';
   search.style.cssText='width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:9px 12px;font-size:13px;outline:none;color:var(--ink);margin:2px 4px 8px';
-  const wrap=document.createElement('div');wrap.style.padding='0 4px 6px';
-  wrap.appendChild(search);box.appendChild(wrap);
+  wrap.appendChild(search);
+  // 全部 / 绘画类 筛选
+  const tabs=document.createElement('div');tabs.className='m-tabs';
+  let curTab='all';
+  const bAll=document.createElement('button');bAll.textContent='全部 '+editModels.length;
+  const bImg=document.createElement('button');bImg.textContent='绘画类 '+imgCount;
+  const bAllCls=()=>bAll.classList.toggle('on',curTab==='all');
+  const bImgCls=()=>bImg.classList.toggle('on',curTab==='img');
+  bAll.onclick=()=>{curTab='all';bAllCls();bImgCls();render(search.value.trim().toLowerCase());};
+  bImg.onclick=()=>{curTab='img';bAllCls();bImgCls();render(search.value.trim().toLowerCase());};
+  bAllCls();tabs.appendChild(bAll);tabs.appendChild(bImg);
+  const cnt=document.createElement('span');cnt.className='m-count';tabs.appendChild(cnt);
+  wrap.appendChild(tabs);
+  // 可滚动列表：模型再多也能全部看到
+  const list=document.createElement('div');list.className='m-list';
+  wrap.appendChild(list);
+  box.appendChild(wrap);
   const render=q=>{
-    box.querySelectorAll('.m-item,.m-empty').forEach(x=>x.remove());
-    const hit=sorted.filter(m=>!q||m.toLowerCase().includes(q));
+    cnt.textContent='';
+    list.innerHTML='';
+    let hit=sorted.filter(m=>!q||m.toLowerCase().includes(q));
+    if(curTab==='img')hit=hit.filter(m=>IMAGE_RE.test(m));
+    cnt.textContent='显示 '+hit.length+' 个';
     if(!hit.length){
       const d=document.createElement('div');d.className='m-empty note';
-      d.style.cssText='margin:4px 0 8px';d.textContent='没有匹配的模型';
-      box.appendChild(d);return;
+      d.style.cssText='margin:4px 0 8px';d.textContent=q?('没有匹配「'+q+'」的模型'):'这个分类下暂时没有模型';
+      list.appendChild(d);return;
     }
     hit.forEach(m=>{
       const isImg=IMAGE_RE.test(m);
@@ -1287,7 +1312,7 @@ function openModelPicker(target){
         $(target).value=m;closeOverlays();
         if(target==='#fModel')toast('绘画模型：'+m);else toast('对话模型：'+m);
       };
-      box.appendChild(b);
+      list.appendChild(b);
     });
   };
   search.oninput=()=>render(search.value.trim().toLowerCase());
