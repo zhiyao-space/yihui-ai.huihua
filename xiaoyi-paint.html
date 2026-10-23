@@ -981,14 +981,30 @@ $('#vBack').onclick=closeOverlays;
 // 点图片以外的暗色区域也能返回
 $('.viewer .v-img').addEventListener('click',e=>{if(e.target.tagName!=='IMG')closeOverlays();});
 $('#viewer').addEventListener('click',e=>{if(e.target===$('#viewer'))closeOverlays();});
-function downloadImg(src,name){
-  const a=document.createElement('a');
+async function downloadImg(src,name){
   const file=name||('小一绘画_'+new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')+'.png');
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  toast('正在保存…');
+  // 大图用 blob 走内存，比 data: 直链更稳
+  let blob=null;
+  try{
+    if(src.startsWith('data:'))blob=await(await fetch(src)).blob();
+    else blob=await(await fetch(src)).blob();
+  }catch(e){}
+  const fl=blob?new File([blob],file,{type:blob.type||'image/png'}):null;
+  // iOS：a[download] 存不进相册，改走系统分享面板 → 用户选「存储图像」直接进相册
+  if(fl&&isIOS&&navigator.canShare&&navigator.canShare({files:[fl]})){
+    try{await navigator.share({files:[fl]});toast('已存储，可在相册查看');return;}
+    catch(e){if(e&&e.name==='AbortError')return;}
+  }
+  const a=document.createElement('a');
+  if(blob){
+    const u=URL.createObjectURL(blob);a.href=u;a.download=file;a.click();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+    toast('已存到「下载」文件夹，部分手机相册不显示，可在文件管理的 Download 里找到');return;
+  }
   if(src.startsWith('data:')){a.href=src;a.download=file;a.click();toast('已保存');return;}
-  fetch(src).then(r=>r.blob()).then(b=>{
-    const u=URL.createObjectURL(b);a.href=u;a.download=file;a.click();
-    setTimeout(()=>URL.revokeObjectURL(u),4000);toast('已保存');
-  }).catch(()=>{window.open(src,'_blank');toast('已在新窗口打开，请长按保存');});
+  window.open(src,'_blank');toast('已在新窗口打开，请长按图片保存');
 }
 $('#vDownload').onclick=()=>{const m=S.viewerMsg,s=S.viewerSrc;m&&s&&downloadImg(s);};
 $('#vStyle').onclick=()=>{
