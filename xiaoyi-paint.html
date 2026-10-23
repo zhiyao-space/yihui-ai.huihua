@@ -666,17 +666,55 @@ let editModels=[]; // 当前表单可选择的模型列表（未保存也能用�
 const activePreset=()=>S.presets.find(p=>p.id===S.activeId)||null;
 const activeStyle=()=>S.styles.find(x=>x.id===S.styleActive)||null;
 const selChars=()=>S.chars.filter(c=>S.charSel.includes(c.id));
+/* ================= IndexedDB 图片缓存（大容量，解决 localStorage 5MB 上限导致的“内存不足”） ================= */
+let _idbP=null;
+const idbOpen=()=>_idbP||(_idbP=new Promise((res,rej)=>{const rq=indexedDB.open('xy_img',1);rq.onupgradeneeded=()=>rq.result.createObjectStore('t');rq.onsuccess=()=>res(rq.result);rq.onerror=()=>rej(rq.error);}));
+async function idbSet(k,v){try{const db=await idbOpen();await new Promise((res,rej)=>{const tx=db.transaction('t','readwrite');tx.objectStore('t').put(v,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});return true;}catch(e){return false;}}
+async function idbGet(k){try{const db=await idbOpen();return await new Promise(res=>{const rq=db.transaction('t').objectStore('t').get(k);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>res(null);});}catch(e){return null;}}
+function isData(v){return typeof v==='string'&&v.startsWith('data:');}
+function isRef(v){return typeof v==='string'&&v.startsWith('@idb:');}
+
 function persist(key,arr,dropImg=true){
-  if(store.set(key,arr)){ if(key==='xy_msgs')S.msgs=arr; return; }
-  if(dropImg){ // 图片占空间，逐步丢最老的图片数据再试
+  const jobs=[];let out=arr;
+  if(key==='xy_styles'||key==='xy_chars'){ // 画风/形象参考图走 IndexedDB，本体只留引用
+    out=arr.map(o=>{const c={...o};if(isData(c.img)){const k=key[3]+':'+c.id;jobs.push(idbSet(k,c.img));c.img='@idb:'+k;}return c;});
+    if(store.set(key,out))return;
+  }else if(store.set(key,arr)){return;}
+  if(dropImg){ // 兜底：仍超限则丢最老图片数据再试
     const a=JSON.parse(JSON.stringify(arr));
     for(let i=0;i<a.length;i++){
-      if(a[i].img||(a[i].imgs&&a[i].imgs.length)){a[i].img='';a[i].imgs=[];a[i].evicted=true; if(store.set(key,a)){if(key==='xy_msgs')S.msgs=a;return;} }
+      if(a[i].img||(a[i].imgs&&a[i].imgs.length)){a[i].img='';a[i].imgs=[];a[i].evicted=true; if(store.set(key,a))return; }
     }
   }
   toast('本机存储空间不足，部分图片未能缓存');
 }
-const persistMsgs=()=>persist('xy_msgs',S.msgs);
+async function persistMsgs(){ // 聊天图片全部进 IndexedDB，localStorage 只存引用，几乎不再触发配额
+  const jobs=[];
+  const out=S.msgs.map(m=>{
+    const c={...m};
+    if(isData(c.img)){const k='m:'+c.id;jobs.push(idbSet(k,c.img));c.img='@idb:'+k;}
+    if(c.imgs&&c.imgs.length)c.imgs=c.imgs.map((v,i)=>{if(isData(v)){const k='m:'+c.id+':'+i;jobs.push(idbSet(k,v));return '@idb:'+k;}return v;});
+    return c;
+  });
+  await Promise.all(jobs).catch(()=>{});
+  store.set('xy_msgs',out);
+}
+async function hydrateImgs(){ // 启动时把 IndexedDB 里的图片补回内存
+  let dirty=false;
+  const fix=async k=>{const v=await idbGet(k);return v;};
+  const one=async(o,key)=>{
+    if(isRef(o.img)){const v=await fix(o.img.slice(5));if(v){o.img=v;dirty=true;}else{o.img='';o.evicted=true;dirty=true;}}
+  };
+  for(const m of S.msgs){
+    await one(m,'m');
+    if(m.imgs&&m.imgs.length){let ch=false;const a=[];
+      for(const v of m.imgs){if(isRef(v)){const g=await fix(v.slice(5));a.push(g||'');ch=true;}else a.push(v);}
+      if(ch){m.imgs=a;dirty=true;}}
+  }
+  for(const s of S.styles)await one(s,'s');
+  for(const c of S.chars)await one(c,'c');
+  if(dirty){renderMsgs();renderStyles();renderChars();renderGallery();}
+}
 
 /* ================= avatar & icons ================= */
 const AVATAR_SVG='<svg viewBox="0 0 24 24" fill="none"><path d="M5.5 19c4.4-.4 6.8-3.2 8.6-8.1l1.6-4.2c.2-.5.9-.6 1.2-.2l1.4 1.5c.3.4.2.9-.2 1.2l-3.4 2.7C12 14 9 17 5.5 19z" fill="currentColor"/><circle cx="17.6" cy="6.4" r="1.7" stroke="currentColor" stroke-width="1.5"/></svg>';
@@ -1833,6 +1871,7 @@ applyTheme();
 // 上次中途退出留下的生成中气泡，标记为中断
 S.msgs.forEach(m=>{if(m.kind==='progress'){m.kind='error';m.text='上次生成被中断了，重新发一次就行。';}});
 renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();renderSnips();renderArtists();renderStyleLib();renderGallery();
+hydrateImgs(); // 把 IndexedDB 里缓存的图片补回界面
 if(S.presets.length&&!S.editingPreset)fillForm(activePreset()||S.presets[0]);
 else fillForm(null);
 </script>
