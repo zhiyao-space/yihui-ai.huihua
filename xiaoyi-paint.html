@@ -665,6 +665,7 @@ const S={
 let editModels=[]; // 当前表单可选择的模型列表（未保存也能用）
 const activePreset=()=>S.presets.find(p=>p.id===S.activeId)||null;
 const activeStyle=()=>S.styles.find(x=>x.id===S.styleActive)||null;
+const styleImgs=st=>{if(!st)return[];return((st.imgs&&st.imgs.length)?st.imgs:[st.img]).filter(Boolean).slice(0,4);};
 const selChars=()=>S.chars.filter(c=>S.charSel.includes(c.id));
 /* ================= IndexedDB 图片缓存（大容量，解决 localStorage 5MB 上限导致的“内存不足”） ================= */
 let _idbP=null;
@@ -677,7 +678,10 @@ function isRef(v){return typeof v==='string'&&v.startsWith('@idb:');}
 function persist(key,arr,dropImg=true){
   const jobs=[];let out=arr;
   if(key==='xy_styles'||key==='xy_chars'){ // 画风/形象参考图走 IndexedDB，本体只留引用
-    out=arr.map(o=>{const c={...o};if(isData(c.img)){const k=key[3]+':'+c.id;jobs.push(idbSet(k,c.img));c.img='@idb:'+k;}return c;});
+    out=arr.map(o=>{const c={...o};
+      if(isData(c.img)){const k=key[3]+':'+c.id;jobs.push(idbSet(k,c.img));c.img='@idb:'+k;}
+      if(c.imgs&&c.imgs.length)c.imgs=c.imgs.map((v,i)=>{if(isData(v)){const k=key[3]+':'+c.id+':'+i;jobs.push(idbSet(k,v));return '@idb:'+k;}return v;});
+      return c;});
     if(store.set(key,out))return;
   }else if(store.set(key,arr)){return;}
   if(dropImg){ // 兜底：仍超限则丢最老图片数据再试
@@ -711,8 +715,12 @@ async function hydrateImgs(){ // 启动时把 IndexedDB 里的图片补回内存
       for(const v of m.imgs){if(isRef(v)){const g=await fix(v.slice(5));a.push(g||'');ch=true;}else a.push(v);}
       if(ch){m.imgs=a;dirty=true;}}
   }
-  for(const s of S.styles)await one(s,'s');
-  for(const c of S.chars)await one(c,'c');
+  for(const s of S.styles){await one(s,'s');
+    if(s.imgs&&s.imgs.length){let ch=false;const a=[];
+      for(const v of s.imgs){if(isRef(v)){const g=await fix(v.slice(5));a.push(g||'');ch=true;}else a.push(v);}
+      if(ch){s.imgs=a;dirty=true;}}
+  }
+  for(const c of S.chars){await one(c,'c');}
   if(dirty){renderMsgs();renderStyles();renderChars();renderGallery();}
 }
 
@@ -904,7 +912,8 @@ function progressHTML(m){
 function updateProgress(m,pct,stage){
   m.pct=pct; m.stage=stage; // 进度为临时态，仅最终结果落盘
   const el=$('.msg[data-id="'+m.id+'"]'); if(!el)return;
-  el.querySelector('.pct').textContent=pct+'%';
+  const pc=el.querySelector('.pct'); if(!pc)return; // 气泡已被最终结果替换时跳过，防定时器空转报错
+  pc.textContent=pct+'%';
   el.querySelector('.stage').textContent=stage;
   el.querySelector('.bar i').style.width=pct+'%';
 }
@@ -938,7 +947,9 @@ function sheetFor(m){
     }
   }});
   items.push({icon:'undo',txt:'撤回',fn:()=>{S.msgs=S.msgs.filter(x=>x.id!==m.id);persistMsgs();renderMsgs();toast('已撤回');}});
-  if((m.kind==='image'&&(m.img||(m.imgs&&m.imgs.length))&&m.prompt)||(m.role==='user'&&m.text))
+  if(m.kind==='image'&&(m.img||(m.imgs&&m.imgs.length))&&m.prompt)
+    items.push({icon:'redo',txt:'继续生成 · 同款再刷',fn:()=>regen(m)});
+  else if(m.role==='user'&&m.text)
     items.push({icon:'redo',txt:'重新生成',fn:()=>regen(m)});
   openSheet('来自 '+(m.role==='user'?'我':'小一')+' · '+label.slice(0,24),items);
 }
@@ -1009,11 +1020,13 @@ async function downloadImg(src,name){
 $('#vDownload').onclick=()=>{const m=S.viewerMsg,s=S.viewerSrc;m&&s&&downloadImg(s);};
 $('#vStyle').onclick=()=>{
   const m=S.viewerMsg,s=S.viewerSrc;if(!m||!s)return;
-  askConfirm('设为专属画风','之后每次生成都会参考这张图的画风、质感与色彩，确定吗？',()=>{
-    addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),img:s,auto:true});
+  const all=((m.imgs&&m.imgs.length)?m.imgs:[m.img||s]).filter(Boolean);
+  const multi=all.length>1;
+  askConfirm('设为专属画风',multi?('将这 '+all.length+' 张图一起作为画风参考，画风还原会更准。确定吗？'):'之后每次生成都会参考这张图的画风、质感与色彩，确定吗？',()=>{
+    addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),imgs:all,auto:true});
     S.styleActive=S.styles[0].id;store.set('xy_style_active',S.styleActive);
     renderStyles();renderCtx();
-    S.msgs.push({id:uid(),role:'ai',kind:'text',text:'好，这张以后就是你的专属画风了，接下来都按这个风格来。',ts:Date.now()});
+    S.msgs.push({id:uid(),role:'ai',kind:'text',text:multi?('好，这 '+all.length+' 张都收进画风参考了，接下来都按这个风格来，还原会更准。'):'好，这张以后就是你的专属画风了，接下来都按这个风格来。',ts:Date.now()});
     persistMsgs();renderMsgs();
   });
 };
@@ -1359,7 +1372,7 @@ async function runGeneration({userText,extraPrompt='',refImgs=[],promptEn:enOver
   if(artsOn.length)parts.push(artsOn.map(a=>a.str).join(', '));
   let prompt=parts.filter(Boolean).join('\n');
   if(S.qtags)prompt='best quality, amazing quality, very aesthetic, absurdres, '+prompt;
-  const refs=[...(st?[st.img]:[]),...cs.map(c=>c.img),...refImgs,...S.refs.map(r=>r.img)];
+  const refs=[...styleImgs(st),...cs.map(c=>c.img),...refImgs,...S.refs.map(r=>r.img)];
   const n=Math.max(1,Math.min(4,S.count|0));
 
   const prog={id:uid(),role:'ai',kind:'progress',text:pick(ACKS),pct:4,stage:'已读 · 理解需求',ts:Date.now()};
@@ -1375,7 +1388,8 @@ async function runGeneration({userText,extraPrompt='',refImgs=[],promptEn:enOver
   }
   const t0=Date.now();
   const timer=setInterval(()=>{
-    if(prog.kind!=='progress')return clearInterval(timer);
+    const cur=S.msgs.find(x=>x.id===prog.id);
+    if(!cur||cur.kind!=='progress')return clearInterval(timer); // 已出结果就停表
     const next=Math.min(prog.pct+Math.max(1,(90-prog.pct)*0.06|0),92);
     updateProgress(prog,next,next<25?'提交请求':next<65?(n>1?'生成 '+n+' 张 · 进行中':'模型生成中'):'接收图片');
   },420);
@@ -1430,7 +1444,7 @@ function renderStyles(){
     const c=document.createElement('div');c.className='card'+(on?' active':'');
     c.innerHTML=`<div class="row">
       <img class="thumb" src="${s.img}">
-      <div class="grow"><div class="nm">${esc(s.name)}</div><div class="meta">${s.auto?'来自生成图':'手动上传'}${on?' · 使用中':' · 未启用'}</div></div>
+      <div class="grow"><div class="nm">${esc(s.name)}</div><div class="meta">${(s.imgs&&s.imgs.length>1)?s.imgs.length+' 张参考 · ':''}${s.auto?'来自生成图':'手动上传'}${on?' · 使用中':' · 未启用'}</div></div>
       ${on?'<span class="badge">使用中</span>':''}
     </div>
     <div class="acts">
@@ -1463,8 +1477,9 @@ function sheetForStyle(s){
     {icon:'undo',txt:'删除',danger:true,fn:()=>askConfirm('删除画风','删除「'+s.name+'」？',()=>{S.styles=S.styles.filter(x=>x.id!==s.id);persist('xy_styles',S.styles);renderStyles();renderCtx();})}
   ]);
 }
-function addStyle({name,img,auto}){
-  S.styles.unshift({id:uid(),name,img,auto:!!auto,ts:Date.now()});
+function addStyle({name,img,imgs,auto}){
+  const list=(imgs&&imgs.length?imgs:(img?[img]:[])).filter(Boolean);
+  S.styles.unshift({id:uid(),name,img:list[0]||'',imgs:list.length>1?list:undefined,auto:!!auto,ts:Date.now()});
   if(S.styles.length>12)S.styles.pop();
   persist('xy_styles',S.styles);
 }
@@ -1817,12 +1832,29 @@ function renderGallery(){
     d.querySelector('img').onclick=e=>{e.stopPropagation();openViewer(it.m,it.src);};
     bindPress(d,()=>openSheet('画廊作品',[
       {icon:'copy',txt:'保存到相册',fn:()=>downloadImg(it.src)},
-      {icon:'quote',txt:'设为专属画风',fn:()=>askConfirm('设为专属画风','之后每次生成都会参考这张图的画风，确定吗？',()=>{
-        addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),img:it.src,auto:true});
-        S.styleActive=S.styles[0].id;store.set('xy_style_active',S.styleActive);
-        renderStyles();renderCtx();toast('已设为使用中');
-      })},
-      {icon:'redo',txt:'重发同款',fn:()=>{if(it.m.prompt)runGeneration({userText:it.m.prompt});else toast('这条记录没有提示词');}},
+      {icon:'quote',txt:'设为专属画风',fn:()=>{
+        const all=((it.m.imgs&&it.m.imgs.length)?it.m.imgs:[it.m.img||it.src]).filter(Boolean);
+        const multi=all.length>1;
+        askConfirm('设为专属画风',multi?('将这 '+all.length+' 张图一起作为画风参考，画风还原会更准。确定吗？'):'之后每次生成都会参考这张图的画风，确定吗？',()=>{
+          addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),imgs:all,auto:true});
+          S.styleActive=S.styles[0].id;store.set('xy_style_active',S.styleActive);
+          renderStyles();renderCtx();toast('已设为使用中'+(multi?'（'+all.length+' 张参考）':''));
+        });
+      }},
+      {icon:'redo',txt:'加入使用中画风',fn:()=>{
+        const st=activeStyle();
+        const all=((it.m.imgs&&it.m.imgs.length)?it.m.imgs:[it.m.img||it.src]).filter(Boolean);
+        if(!st){
+          addStyle({name:'画风 '+uid().slice(-4).toUpperCase(),imgs:all,auto:true});
+          S.styleActive=S.styles[0].id;store.set('xy_style_active',S.styleActive);
+          renderStyles();renderCtx();toast('还没有使用中的画风，已新建并启用');return;
+        }
+        const merged=[...styleImgs(st),...all].slice(0,4);
+        st.imgs=merged.length>1?merged:undefined;st.img=merged[0]||st.img;
+        persist('xy_styles',S.styles);renderStyles();renderCtx();
+        toast('已加入「'+st.name+'」，现在共 '+merged.length+' 张参考');
+      }},
+      {icon:'redo',txt:'继续生成 · 同款再刷',fn:()=>{if(it.m.prompt){switchTab('chat');runGeneration({userText:it.m.prompt});}else toast('这条记录没有提示词');}},
       {icon:'undo',txt:'删除此图',danger:true,fn:()=>{
         if(it.m.imgs){it.m.imgs=it.m.imgs.filter(x=>x!==it.src);if(!it.m.imgs.length)S.msgs=S.msgs.filter(x=>x.id!==it.m.id);}
         else S.msgs=S.msgs.filter(x=>x.id!==it.m.id);
