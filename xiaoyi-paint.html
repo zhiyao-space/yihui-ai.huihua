@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="小一">
 <meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0a0c'/><path d='M5.5 19c4.4-.4 6.8-3.2 8.6-8.1l1.6-4.2c.2-.5.9-.6 1.2-.2l1.4 1.5c.3.4.2.9-.2 1.2l-3.4 2.7C12 14 9 17 5.5 19z' fill='%23f4f4f6'/><circle cx='17.6' cy='6.4' r='1.7' fill='%23f4f4f6'/></svg>">
 <title>小一 · AI 绘画助手</title>
 <style>
@@ -1872,7 +1875,8 @@ function makeIcon(size){
   x.fillText('小一',size/2,size/2+size*.02);
   return c.toDataURL('image/png');
 }
-try{
+// 线上（GitHub Pages）用仓库里的真实图标文件；本地 file:// 打开时用运行时生成兜底
+if(location.protocol==='file:'){try{
   const man={name:'小一 · AI 绘画助手',short_name:'小一',start_url:location.pathname,scope:'./',display:'standalone',background_color:'#0a0a0c',theme_color:'#0a0a0c',
     icons:[{src:makeIcon(192),sizes:'192x192',type:'image/png'},{src:makeIcon(512),sizes:'512x512',type:'image/png'}]};
   const l=document.createElement('link');l.rel='manifest';
@@ -1880,7 +1884,7 @@ try{
   document.head.appendChild(l);
   const at=document.createElement('link');at.rel='apple-touch-icon';at.href=makeIcon(180);
   document.head.appendChild(at);
-}catch(e){}
+}catch(e){}}
 let deferredInstall=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;const b=$('#btnInstall');if(b)b.style.display='';});
 $('#btnInstall').onclick=async()=>{
