@@ -189,6 +189,21 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
 @keyframes spLoad{to{width:100%}}
 .sp-skip{position:absolute;bottom:26px;left:0;right:0;text-align:center;font-size:11px;color:var(--faint);opacity:0;animation:spFade .6s ease 1.7s forwards;}
 @media (prefers-reduced-motion:reduce){#splash .sp-glow{animation:none}#splash .sp-mark .p,#splash .sp-mark .c,#splash .sp-name,#splash .sp-sub,#splash .sp-line,#splash .sp-line i,#splash .sp-skip{animation-duration:.01s !important;animation-delay:0s !important;}}
+/* ===== 登录层 ===== */
+#loginOv{position:fixed;inset:0;z-index:998;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:26px;opacity:0;visibility:hidden;transition:opacity .4s ease,visibility .4s ease;}
+#loginOv.show{opacity:1;visibility:visible;}
+.login-card{width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;}
+.login-card .lg-logo{width:58px;height:58px;margin:0 auto;border-radius:18px;background:var(--elev);border:1px solid var(--rule);display:flex;align-items:center;justify-content:center;color:var(--accent);box-shadow:var(--shadow);}
+.login-card .lg-logo svg{width:30px;height:30px;}
+.login-card h2{margin:2px 0 0;text-align:center;font-size:21px;}
+.login-card .lg-sub{margin:0;text-align:center;font-size:12.5px;color:var(--muted);}
+.login-card input{width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:13px;padding:12px 14px;font-size:14.5px;outline:none;color:var(--ink);transition:border-color .18s ease;}
+.login-card input:focus{border-color:var(--accent);}
+.lg-btn{border:0;border-radius:13px;padding:12.5px;font-size:15px;font-weight:600;background:var(--accent);color:#fff;cursor:pointer;transition:transform .15s ease,opacity .15s ease;font-family:inherit;}
+.lg-btn:active{transform:scale(.97);}
+.lg-btn.ghost{background:var(--elev);color:var(--ink);border:1px solid var(--rule);font-weight:500;}
+.lg-err{margin:0;text-align:center;font-size:12.5px;color:#e5636f;min-height:17px;}
+.lg-tip{margin:4px 0 0;font-size:11.5px;line-height:1.7;color:var(--muted);background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;}
 
 /* empty hero */
 .hero{text-align:center; padding:34px 10px 16px;}
@@ -370,6 +385,21 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
   </div>
   <div class="sp-skip">点击任意处跳过</div>
 </div>
+<div id="loginOv">
+  <div class="login-card">
+    <div class="lg-logo"><svg viewBox="0 0 24 24" fill="none"><path d="M5.5 19c4.4-.4 6.8-3.2 8.6-8.1l1.6-4.2c.2-.5.9-.6 1.2-.2l1.4 1.5c.3.4.2.9-.2 1.2l-3.4 2.7C12 14 9 17 5.5 19z" fill="currentColor"/><circle cx="17.6" cy="6.4" r="1.7" stroke="currentColor" stroke-width="1.5"/></svg></div>
+    <h2>小一绘画</h2>
+    <p class="lg-sub">登录后，数据按账号隔离保存在本机</p>
+    <input id="lgUser" placeholder="账号" autocomplete="username" maxlength="24">
+    <input id="lgPass" type="password" placeholder="密码（至少 4 位）" autocomplete="current-password">
+    <input id="lgBkPass" type="password" placeholder="备份密码（仅导入加密备份时填）" style="display:none">
+    <button class="lg-btn" id="lgGo">进入</button>
+    <button class="lg-btn ghost" id="lgImpBtn">从备份文件导入并进入</button>
+    <input type="file" id="lgFile" accept=".txt,.json,text/plain,application/json" style="display:none">
+    <p class="lg-err" id="lgErr"></p>
+    <p class="lg-tip"><b>首次使用</b>：随便设一个账号和密码即可注册，本机原有数据会自动归入这个账号。<b>换新手机</b>：在旧手机导出备份文件，新手机登录任意账号后点「从备份文件导入」，即可完整找回 API 配置、画风、形象与聊天画廊。</p>
+  </div>
+</div>
 <div id="app">
 
   <!-- ============ 助手 ============ -->
@@ -523,21 +553,15 @@ input,textarea,select{font-family:inherit; color:var(--ink);}
         </div>
       </div>
       <div class="sec">
-        <div class="sec-h"><h3>备份与迁移</h3></div>
+        <div class="sec-h"><h3>账号与备份</h3></div>
         <div class="card">
-          <div class="field" style="margin:0 0 8px"><input type="password" id="bkPass" placeholder="备份密码（可选，恢复时必须输入同一个）" style="width:100%;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:13px;outline:none;color:var(--ink)"></div>
-          <div style="display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:8px">
-            <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="bkMedia" checked style="accent-color:var(--accent)">含画风与形象图</label>
-            <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="bkMsgs" style="accent-color:var(--accent)">含聊天与画廊</label>
+          <div class="note" style="margin:0 0 10px">当前账号：<b id="accName">-</b>。数据只存本机、按账号隔离；换设备请用备份文件迁移。</div>
+          <div class="acts" style="margin-top:0">
+            <button class="mini pri" id="btnBkFile2">导出备份文件</button>
+            <button class="mini" id="btnBkCopy2">复制备份串</button>
+            <button class="mini danger" id="btnLogout">退出登录</button>
           </div>
-          <textarea id="bkText" placeholder="点「生成备份」后这里出现备份串：复制存到备忘录/网盘；换设备时粘贴到这里，输同一个密码，点「恢复导入」即可完整找回" style="width:100%;min-height:64px;background:var(--elev);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;font-size:11px;font-family:monospace;outline:none;color:var(--ink);resize:vertical"></textarea>
-          <div class="acts" style="margin-top:8px">
-            <button class="mini" id="btnBkExport">生成备份</button>
-            <button class="mini" id="btnBkCopy">复制</button>
-            <button class="mini" id="btnBkFile">存为文件</button>
-            <button class="mini" id="btnBkImport">恢复导入</button>
-          </div>
-          <div class="note" style="margin-top:8px"><b>说明</b>：本页数据只存本机浏览器。备份串自带 API 配置、画风与形象图片，设了密码会用 AES-GCM 加密——备份串相当于账号、密码就是钥匙，换设备随时找回；密码忘了无法解密，务必记牢。</div>
+          <div class="note" style="margin-top:8px"><b>备份串说明</b>：自带 API 配置、画风与形象图片、聊天画廊。备份文件已下载到「下载」文件夹；「复制备份串」可粘贴进备忘录/网盘保存。新手机上登录任意账号 → 首页「从备份文件导入」即可找回。</div>
         </div>
       </div>
       <div class="sec">
@@ -632,9 +656,14 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtTime=ts=>{const d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+/* 账号数据隔离：所有应用数据键带账号前缀（xy_uid / xy_accounts 本身除外） */
+const ACC_KEY='xy_uid',ACC_DB='xy_accounts';
+const uidNow=()=>localStorage.getItem(ACC_KEY)||'';
+const uk=k=>uidNow()+k;
+const isGuestKey=k=>!!k&&!/^U[0-9a-f]{8,}:/.test(k)&&k!==ACC_KEY&&k!==ACC_DB;
 const store={
-  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
+  get(k,d){try{const v=localStorage.getItem(uk(k));return v==null?d:JSON.parse(v);}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));return true;}catch(e){return false;}}
 };
 let toastTimer;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
@@ -1778,35 +1807,110 @@ function applyBackup(o){
   if(o.msgs){S.msgs=o.msgs;persistMsgs();}
   renderPresets();fillForm(activePreset()||S.presets[0]||null);renderSnips();renderArtists();renderMsgs();
 }
-$('#btnBkExport').onclick=async()=>{
-  const pass=$('#bkPass').value;
-  const text=await packPayload(buildBackup($('#bkMedia').checked,$('#bkMsgs').checked),pass);
-  $('#bkText').value=text;
-  toast(pass?'已加密导出：复制保存好，密码丢失无法找回':'已导出：复制保存好这份备份串');
-};
-$('#btnBkCopy').onclick=async()=>{
-  const t=$('#bkText').value.trim();if(!t)return toast('先点「生成备份」');
-  try{await navigator.clipboard.writeText(t);toast('备份串已复制');}catch(e){$('#bkText').select();toast('已全选，请手动复制');}
-};
-$('#btnBkFile').onclick=()=>{
-  const t=$('#bkText').value.trim();if(!t)return toast('先点「生成备份」');
-  const a=document.createElement('a');
-  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(t);
-  a.download='xiaoyi-backup-'+new Date().toISOString().slice(0,10)+'.txt';a.click();
-  toast('备份文件已生成');
-};
-$('#btnBkImport').onclick=async()=>{
-  const t=$('#bkText').value.trim();if(!t)return toast('先把备份串粘贴进来');
-  const pass=$('#bkPass').value;
-  try{
-    const o=await unpackPayload(t,pass);
-    askConfirm('恢复备份','将覆盖当前的 API 配置'+($('#bkMedia').checked&&o.styles?'、画风与形象':'')+($('#bkMsgs').checked&&o.msgs?'、聊天记录':'')+'，确定吗？',()=>{
-      try{applyBackup(o);$('#bkText').value='';toast('恢复完成，配置已找回');}
-      catch(e){toast('备份内容不完整');}
-    });
-  }catch(e){
-    toast(String(e.message)==='需要密码'?'这份备份有密码，先在上方填好密码再恢复':'密码错误或备份串损坏');
+/* ================= 账号登录（本机多账号，数据按账号隔离） ================= */
+function weakHash(str){ // 纯 JS 哈希回退：crypto.subtle 不可用（非安全上下文）时使用
+  let h1=0x811c9dc5,h2=0x1000193,s=String(str);
+  for(let r=0;r<64;r++){
+    for(let i=0;i<s.length;i++){
+      const c=s.charCodeAt(i);
+      h1=((h1^c)>>>0);h1=(h1*16777619)>>>0;
+      h2=((h2+c+r)>>>0);h2=(h2^(h2<<13))>>>0;h2=(h2^(h2>>>7))>>>0;
+    }
+    s=h1+'|'+h2+'|'+s.length;
   }
+  return ('0000000'+h1.toString(16)).slice(-8)+('0000000'+h2.toString(16)).slice(-8);
+}
+const hasSubtle=()=>!!(window.crypto&&crypto.subtle);
+const shaHex=async s=>{if(hasSubtle()){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return b64e(b);}return weakHash('sha:'+s);};
+async function pbk(pass,saltB64){
+  if(hasSubtle()){
+    const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveBits']);
+    const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:b64d(saltB64),iterations:6e4,hash:'SHA-256'},km,256);
+    return b64e(bits);
+  }
+  let h=saltB64+'$'+pass;for(let i=0;i<3000;i++)h=weakHash(h+i);return h;
+}
+const accounts=()=>{try{return JSON.parse(localStorage.getItem(ACC_DB)||'{}');}catch(e){return {};}};
+const saveAccounts=a=>{try{localStorage.setItem(ACC_DB,JSON.stringify(a));}catch(e){}};
+function copyGuestTo(prefix){ // 新账号注册时，把本机原有（游客）数据自动归入该账号
+  try{
+    for(let i=localStorage.length-1;i>=0;i--){
+      const k=localStorage.key(i);
+      if(!isGuestKey(k))continue;
+      const v=localStorage.getItem(k);
+      if(v!=null)try{localStorage.setItem(prefix+k,v);}catch(e){break;}
+    }
+  }catch(e){}
+}
+async function ensureAccount(name,pass){
+  const acc=accounts(),key=await shaHex('acc:'+name.toLowerCase());
+  if(acc[key]){
+    if(await pbk(pass,acc[key].salt)!==acc[key].hash)throw new Error('密码不对');
+    return key;
+  }
+  const salt=b64e(crypto.getRandomValues(new Uint8Array(16)));
+  acc[key]={salt,hash:await pbk(pass,salt),name,created:Date.now()};saveAccounts(acc);
+  copyGuestTo(key); // 老数据自动归账
+  return key;
+}
+const lgErr=t=>{$('#lgErr').textContent=t||'';};
+$('#lgGo').onclick=async()=>{
+  const name=$('#lgUser').value.trim(),pass=$('#lgPass').value;
+  if(!name)return lgErr('先填个账号名');
+  if(pass.length<4)return lgErr('密码至少 4 位');
+  lgErr('处理中…');
+  try{
+    const key=await ensureAccount(name,pass);
+    localStorage.setItem(ACC_KEY,key);location.reload();
+  }catch(e){lgErr(e.message||'登录失败');}
+};
+[$('#lgUser'),$('#lgPass')].forEach(el=>el&&el.addEventListener('keydown',e=>{if(e.key==='Enter')$('#lgGo').click();}));
+$('#lgImpBtn').onclick=()=>$('#lgFile').click();
+$('#lgFile').onchange=async e=>{
+  const f=e.target.files&&e.target.files[0];e.target.value='';
+  if(!f)return;
+  lgErr('读取备份中…');
+  let text='';
+  try{text=await f.text();}catch(err){return lgErr('备份文件读取失败');}
+  let o=null;
+  try{o=await unpackPayload(text,$('#lgBkPass').value);}
+  catch(err){
+    if(String(err.message)==='需要密码'){$('#lgBkPass').style.display='';return lgErr('这份备份是加密的：先填「备份密码」，再重新点导入');}
+    return lgErr('密码错误或备份文件无效');
+  }
+  const name=$('#lgUser').value.trim(),pass=$('#lgPass').value;
+  if(!name||pass.length<4)return lgErr('先填好账号和密码（≥4位），再点导入');
+  try{
+    const key=await ensureAccount(name,pass);
+    localStorage.setItem(ACC_KEY,key);
+    let ok=true;
+    try{applyBackup(o);}catch(err){ok=false;}
+    lgErr('');
+    toast(ok?'备份导入成功，正在进入…':'备份内容不完整，已按现状进入');
+    setTimeout(()=>location.reload(),900);
+  }catch(err){lgErr(err.message||'导入失败');}
+};
+$('#btnLogout').onclick=()=>askConfirm('退出登录','数据保留在本机该账号下，下次登录同一账号即可找回。确定退出？',()=>{
+  localStorage.removeItem(ACC_KEY);location.reload();
+});
+/* ================= 备份导出（账号页） ================= */
+let lastBackup='';
+const genBackup=async()=>{lastBackup=await packPayload(buildBackup(true,true),'');return lastBackup;};
+$('#btnBkFile2').onclick=async()=>{
+  toast('正在生成备份…');
+  const t=await genBackup();
+  const blob=new Blob([t],{type:'text/plain;charset=utf-8'});
+  const u=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=u;
+  a.download='xiaoyi-backup-'+new Date().toISOString().slice(0,10)+'.txt';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),4000);
+  toast('备份文件已生成，在「下载」里找');
+};
+$('#btnBkCopy2').onclick=async()=>{
+  const t=lastBackup||await genBackup();
+  try{await navigator.clipboard.writeText(t);toast('备份串已复制，粘贴到备忘录/网盘保存');}
+  catch(e){toast('复制失败，请改用「导出备份文件」');}
 };
 
 /* ================= 作品画廊 ================= */
@@ -1907,6 +2011,7 @@ function endSplash(){
   if(splashDone||!splash)return;splashDone=true;
   splash.classList.add('done');
   setTimeout(()=>splash.remove(),650);
+  if(!uidNow())setTimeout(()=>$('#loginOv').classList.add('show'),350); // 未登录 → 登录页
 }
 if(splash){
   const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1922,6 +2027,7 @@ renderMsgs();renderCtx();renderStyles();renderChars();renderPresets();renderSnip
 hydrateImgs(); // 把 IndexedDB 里缓存的图片补回界面
 if(S.presets.length&&!S.editingPreset)fillForm(activePreset()||S.presets[0]);
 else fillForm(null);
+(()=>{const a=accounts()[uidNow()];const el=$('#accName');if(el)el.textContent=a?a.name:'未登录';})();
 </script>
 </body>
 </html>
